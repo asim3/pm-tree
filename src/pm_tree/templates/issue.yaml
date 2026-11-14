@@ -1,0 +1,27 @@
+# Issue template. Copy it to pm/M<n>-<slug>/<id>-<slug>.yaml and replace every value.
+# Every key is required. The format and its rules: run `pm-tree --docs` for its README.md.
+id: I-001                  # I-<nnn>, the next free number; must match the file name
+title: Short issue title
+status: todo               # todo | doing | blocked | done | dropped | duplicate
+priority: medium           # high | medium | low
+repo: backend              # backend | frontend | mobile: the repo its work is committed in
+spec: "section 1"          # where the spec covers this, as a quoted string, or null
+context: >
+  Why this issue exists, in one paragraph.
+scope:
+  in:                      # what this issue delivers; may be []
+    - One thing it delivers
+  out:                     # what it explicitly leaves out; may be []
+    - One thing it leaves out
+acceptance:                # at least one item
+  - text: A checkable outcome
+    done: false            # true | false
+links:                     # issue IDs only; each link is written on one of its two issues
+  depends_on: []           # issues that must be done before this one can start
+  related: []              # written here or on the other issue, not on both
+  duplicate_of: null       # the original issue's ID, set only when status is duplicate
+notes: []                  # decisions and blockers; may be [], except when blocked or dropped
+# A copy starts with no notes. With one, notes reads:
+# notes:
+#   - date: "2026-01-01"   # quoted YYYY-MM-DD, the day it was written
+#     text: A decision or blocker.

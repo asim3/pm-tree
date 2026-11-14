@@ -1,0 +1,21 @@
+id: I-008
+title: Spam protection on the lead form
+status: blocked
+priority: medium
+repo: frontend
+spec: "section 5.3"
+context: >
+  An open form attracts bots, and fake leads waste the tenant's time.
+scope:
+  in: [A CAPTCHA on the public lead form]
+  out: [Rate limiting]
+acceptance:
+  - text: A bot submission is rejected without creating a lead
+    done: false
+links:
+  depends_on: []
+  related: [I-006]
+  duplicate_of: null
+notes:
+  - date: "2026-10-10"
+    text: Blocked until a CAPTCHA provider is chosen.

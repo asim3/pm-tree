@@ -1,0 +1,21 @@
+id: I-003
+title: Look up the tenant by subdomain
+status: duplicate
+priority: medium
+repo: backend
+spec: null
+context: >
+  Filed before I-002 was scoped to cover every domain, subdomains included.
+scope:
+  in: []
+  out: []
+acceptance:
+  - text: A subdomain resolves to its tenant
+    done: false
+links:
+  depends_on: []
+  related: []
+  duplicate_of: I-002
+notes:
+  - date: "2026-10-03"
+    text: Closed as a duplicate of I-002, which resolves subdomains too.

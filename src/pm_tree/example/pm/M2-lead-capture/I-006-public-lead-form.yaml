@@ -1,0 +1,23 @@
+id: I-006
+title: Public lead form
+status: doing
+priority: high
+repo: frontend
+spec: "section 5.2"
+context: >
+  Visitors need a way to reach the tenant without an account.
+scope:
+  in: [A form on the tenant's site that creates a lead]
+  out: [File uploads]
+acceptance:
+  - text: A submitted form creates a lead for that site's tenant
+    done: true
+  - text: Invalid input is shown next to its field
+    done: false
+links:
+  depends_on: [I-005]
+  related: []
+  duplicate_of: null
+notes:
+  - date: "2026-10-09"
+    text: Phone is optional; email is required.

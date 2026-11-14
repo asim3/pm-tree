@@ -1,0 +1,21 @@
+id: I-001
+title: Tenant model and admin
+status: done
+priority: high
+repo: backend
+spec: "section 3.1"
+context: >
+  Everything else is scoped to a tenant, so the tenant record comes first.
+scope:
+  in:
+    - Tenant model with a name and its domains
+    - Admin screens to add and edit tenants
+  out: [Self-service sign-up]
+acceptance:
+  - text: A tenant with two domains can be created in the admin
+    done: true
+links:
+  depends_on: []
+  related: []
+  duplicate_of: null
+notes: []

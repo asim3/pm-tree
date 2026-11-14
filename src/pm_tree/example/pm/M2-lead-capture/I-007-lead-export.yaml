@@ -1,0 +1,19 @@
+id: I-007
+title: Export leads to CSV
+status: todo
+priority: low
+repo: backend
+spec: "section 5.4"
+context: >
+  Tenants want to move their leads into their own spreadsheets.
+scope:
+  in: [CSV download of the lead list as filtered]
+  out: [Scheduled exports]
+acceptance:
+  - text: The CSV holds exactly the leads the list shows
+    done: false
+links:
+  depends_on: [I-005]
+  related: []
+  duplicate_of: null
+notes: []

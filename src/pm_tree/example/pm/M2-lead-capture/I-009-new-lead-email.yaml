@@ -1,0 +1,19 @@
+id: I-009
+title: Email the tenant about each new lead
+status: todo
+priority: medium
+repo: backend
+spec: "section 5.5"
+context: >
+  Tenants don't watch the app all day; a new lead must reach them.
+scope:
+  in: [One email per new lead to the tenant's contact address]
+  out: [SMS and WhatsApp alerts]
+acceptance:
+  - text: Each new lead sends one email within a minute
+    done: false
+links:
+  depends_on: [I-006]
+  related: []
+  duplicate_of: null
+notes: []

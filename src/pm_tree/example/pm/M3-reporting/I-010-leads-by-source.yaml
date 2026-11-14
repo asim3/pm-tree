@@ -1,0 +1,20 @@
+id: I-010
+title: Leads by source report
+status: todo
+priority: medium
+repo: mobile
+spec: null
+context: >
+  The first report tenants asked for. It waits on lead emails so the
+  report can also count how many leads were answered.
+scope:
+  in: []
+  out: []
+acceptance:
+  - text: The report counts last month's leads by source
+    done: false
+links:
+  depends_on: [I-009]
+  related: []
+  duplicate_of: null
+notes: []

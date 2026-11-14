@@ -1,0 +1,22 @@
+id: I-005
+title: Lead model and admin
+status: done
+priority: high
+repo: backend
+spec: "section 5.1"
+context: >
+  Leads belong to a tenant and are what every other M2 issue works with.
+scope:
+  in:
+    - Lead model with name, phone, email and source
+  out: []
+acceptance:
+  - text: Leads are listed per tenant in the admin
+    done: true
+  - text: A tenant never sees another tenant's leads
+    done: true
+links:
+  depends_on: [I-001]
+  related: []
+  duplicate_of: null
+notes: []

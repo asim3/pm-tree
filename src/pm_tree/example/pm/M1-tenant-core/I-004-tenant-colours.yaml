@@ -1,0 +1,23 @@
+id: I-004
+title: Per-tenant colour theme
+status: dropped
+priority: low
+repo: backend
+spec: null
+context: >
+  Tenants asked to see their own brand colour in the app.
+scope:
+  in: [One primary colour per tenant]
+  out:
+    - Custom fonts
+    - Custom logos
+acceptance:
+  - text: Each tenant's pages use its primary colour
+    done: false
+links:
+  depends_on: []
+  related: []
+  duplicate_of: null
+notes:
+  - date: "2026-10-05"
+    text: Dropped. No launch customer needs it.

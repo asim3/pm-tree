@@ -1,0 +1,23 @@
+id: I-002
+title: Tenant resolution from request domain
+status: done
+priority: high
+repo: backend
+spec: "section 4.2"
+context: >
+  Each request must know its tenant before any view runs.
+scope:
+  in: [Resolve the tenant from the Host header]
+  out: [Custom-domain TLS]
+acceptance:
+  - text: Unknown domain returns 404
+    done: true
+  - text: Each known domain resolves to its own tenant
+    done: true
+links:
+  depends_on: [I-001]
+  related: []
+  duplicate_of: null
+notes:
+  - date: "2026-10-02"
+    text: Resolve from the Host header only. The proxy sets it, so X-Forwarded-Host is ignored.
