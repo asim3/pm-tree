@@ -40,7 +40,7 @@ The output of `pm-tree`:
 Warnings alone exit 0.
 
 ```
-pm-tree 1.0.0
+pm-tree 1.1.0
 ERROR pm/M1-tenant-core/I-002-tenant-resolution.yaml: status is doing, but depends_on I-001 is todo
 WARNING pm/M2-lead-capture/I-007-lead-export.yaml: title is the same as I-012 (pm/M2-lead-capture/I-012-export-leads-to-csv.yaml), ignoring case, spaces and punctuation
 1 error, 1 warning
@@ -164,7 +164,7 @@ The backend repo, beside its code:
 
 ```
 SPEC.md                    # the project's spec, which milestones and issues point into
-requirements-dev.txt       # pins pm-tree, such as pm-tree==1.0.0
+requirements-dev.txt       # pins pm-tree, such as pm-tree==1.1.0
 pm/
   M1-<slug>/
     milestone.yaml
