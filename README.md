@@ -4,8 +4,8 @@ A file-based project-management format, and a strict validator for it. A project
 
 It is built for its owner's own projects. It is published on PyPI so that each of his repos can install it, not to serve other users.
 
-- **The format and every rule:** [src/pm_tree/README.md](src/pm_tree/README.md), which is also the package's page on PyPI. An installed copy sits in the folder `pm-tree --docs` prints.
-- **In a project:** pin `pm-tree==<version>` in the backend's dev requirements, then run `pm-tree`, `pm-tree --summary` or `pm-tree --next-id`.
+- **The guide:** [src/pm_tree/README.md](src/pm_tree/README.md), the format, every rule and how to work in `pm/`. It is written for the LLM that works in a project, not for a human, and is also the package's page on PyPI. `pm-tree --guide` prints the installed copy, with the templates.
+- **In a project:** pin `pm-tree==<version>` in the backend's dev requirements, then run `pm-tree`, `pm-tree --summary`, `pm-tree --next-id` or `pm-tree --guide`.
 
 ## Developing pm-tree
 
@@ -17,7 +17,7 @@ python3 -m venv .venv
 
 - `tests/test_rules.py` gives every rule at least one passing and one failing fixture. Each fixture is a small change to a valid base tree. A failing fixture lists every finding it must produce, so it fails if it sets off anything else. The fixtures run with a fixed today, 2030-01-01, so their notes are never in the future.
 - `tests/test_templates.py` checks that the templates hold the schema's full key set, in its order, and that their values pass the schema. The issue template starts with no notes, so a copy can't keep a made-up dated note; it shows a note in a comment, which the test reads.
-- `tests/test_cli.py` checks the output format, the exit codes, the `pm-tree` command, `--summary`, `--docs`, and `--next-id` on scratch git repos. It also checks that `example/pm/` validates with no errors and no warnings and uses every status, priority, repo and link type.
+- `tests/test_cli.py` checks the output format, the exit codes, the `pm-tree` command, `--summary`, `--guide`, `--docs`, `--help`, and `--next-id` on scratch git repos. It checks that the guide names every option `--help` lists. It also checks that `example/pm/` validates with no errors and no warnings and uses every status, priority, repo and link type.
 
 CI runs the tests on Python 3.10 and 3.14 on every push and pull request.
 
@@ -29,4 +29,4 @@ CI runs the tests on Python 3.10 and 3.14 on every push and pull request.
 
 PyPI trusts this repo's `.github/workflows/ci.yml` to publish `pm-tree` (trusted publishing), so no token is kept anywhere.
 
-Each project repo moves to the new version when its pin is raised, in a merge request of its own (see *Layout* in the format README).
+Each project repo moves to the new version when its pin is raised, in a merge request of its own (see *Move to a new version of pm-tree* in the guide).

@@ -1,29 +1,164 @@
 # pm-tree
 
-A file-based project-management format, and a strict validator for it.
+This guide is for you, the LLM working in a project that tracks its work in `pm/`. It is not written for a human reader. Read all of it before you create, change or close anything in `pm/`.
 
-A project tracks its work in `pm/`, with one folder per milestone and one YAML file per issue. `pm/` is the main interface between the owner and Claude Code. Claude Code works from the issues and keeps them up to date. It closes issues and milestones on its own judgment, and asks the owner only when one needs him, such as for a decision. The owner reviews `pm/`, not the code.
+`pm-tree --guide` prints this guide, followed by the two templates. It describes the version your repo pins, which `pm-tree` prints on its first line.
 
-The format is strict, machine-checkable and free of duplication. Each fact is written once: a milestone's goal and gate criteria stay in the project's `SPEC.md`, and each link between two issues is written on one of them. History comes from git, so the files hold no dates and no owners. The only dates are the ones inside notes.
+pm-tree is two things: a file-based project-management format, and `pm-tree`, a strict validator for it.
 
-The version is in the package's `pyproject.toml`, and the validator prints it first. The owner sets it by hand.
+## What pm/ is
 
-## Layout
+- `pm/` is the main interface between the owner and you. The owner reviews `pm/`, not the code.
+- It holds one folder per milestone, and one YAML file per issue.
+- You work from the issues, and you keep them up to date as you work.
+- You close issues and milestones on your own judgment. Ask the owner only when one needs him, such as for a decision.
+- Each fact is written once. A milestone's goal and gate criteria stay in the project's `SPEC.md`. Each link between two issues is written on one of them.
+- History comes from git, so the files hold no dates and no owners. The only dates are the ones inside notes.
 
-The package, as installed:
+## Commands
+
+Run the copy your repo pins: `.venv/bin/pm-tree`, or `pm-tree` in the environment where the dev requirements are installed.
+
+| Command | Validates `pm/` | Prints, after the version line | Exit code |
+|---|---|---|---|
+| `pm-tree [path]` | yes | one line per finding, then the counts | 1 on any error, 0 otherwise |
+| `pm-tree --summary [path]` | yes | the findings and the counts; with no errors, each milestone's state | 1 on any error, 0 otherwise |
+| `pm-tree --next-id [path]` | no | the ID a new issue takes | 1 if git can't read the branches, 0 otherwise |
+| `pm-tree --guide` | no | this guide, then the templates | 0 |
+| `pm-tree --docs` | no | the folder that holds this version's `README.md` (this guide), `templates/` and `example/` | 0 |
+
+`path` is the `pm/` folder, and defaults to `pm` in the current folder. The validator needs Python 3.10+ and PyYAML, which pip installs with it. `--next-id` also needs git.
+
+### Validating
+
+The output of `pm-tree`:
+
+- The first line is the installed version.
+- Then one line per finding, sorted by path, as `ERROR <path>: <message>` or `WARNING <path>: <message>`.
+- The last line is the count of errors and warnings.
+
+Warnings alone exit 0.
 
 ```
-pm_tree/
-  README.md                # this file
-  validate.py              # the validator: Python 3.10+, needs only PyYAML (and git for --next-id)
-  templates/milestone.yaml
-  templates/issue.yaml
-  example/pm/              # a small valid tree that uses every field, status, repo and link type
+pm-tree 1.0.0
+ERROR pm/M1-tenant-core/I-002-tenant-resolution.yaml: status is doing, but depends_on I-001 is todo
+WARNING pm/M2-lead-capture/I-007-lead-export.yaml: title is the same as I-012 (pm/M2-lead-capture/I-012-export-leads-to-csv.yaml), ignoring case, spaces and punctuation
+1 error, 1 warning
 ```
 
-`pm-tree --docs` prints the folder it is installed in. A session reads the README and the templates there, so it works to the rules of the version its repo pins.
+### --summary
 
-`pm/` lives in the backend repo. A project with one repo counts it as its backend. A product with several repos (a backend, a frontend, a mobile app) keeps one `pm/` for all of them in its backend. Claude Code working in the frontend or mobile repo opens the backend repo beside it, with `--add-dir` or with `permissions.additionalDirectories` in that repo's settings. One `pm/` and one run of issue numbers then cover every repo, so an issue in one repo can depend on an issue in another.
+`--summary` validates first. If there are errors, it prints them and exits 1. Otherwise it prints, for each milestone:
+
+- its status, and its issue counts by status;
+- every open issue that is waiting, with the IDs it waits on. An issue is waiting when its status is `blocked`, or when it has a `depends_on` issue that isn't done. A blocked issue is also shown with its latest note, which says why;
+- for an active milestone, its ready issues: the `todo` issues that wait on nothing, by priority and then by ID.
+
+From `example/pm/`:
+
+```
+M2 Lead capture: active
+  issues: 5 (2 todo, 1 doing, 1 blocked, 1 done)
+  waiting:
+    I-008 (blocked): Spam protection on the lead form
+      2026-10-10: Blocked until a CAPTCHA provider is chosen.
+    I-009 (todo) waits on I-006: Email the tenant about each new lead
+  ready:
+    I-007 (low): Export leads to CSV
+```
+
+### --next-id
+
+`--next-id` doesn't validate. After the version line, it prints the ID a new issue takes: one above the highest issue number in `path`. It counts the files there, and the same folder on every local and remote branch. If git can't read the branches, it prints the error and exits 1.
+
+## How to work in pm/
+
+### At the start of a session
+
+1. Run `git fetch`.
+2. Run `pm-tree --summary`. If it reports errors, fix them first (see *Fix the findings*).
+3. Choose from the `ready` list of an active milestone, unless the owner has named the issue.
+4. Before you start an issue, look in its repo for a branch with its ID, such as `git branch -a --list '*I-007-*'`. If there is one, the issue is already being worked on.
+
+### Start an issue
+
+1. Make a branch named after it, as `<id>-<slug>` like its file: `I-007-lead-export`. A branch that works on several issues starts with all their IDs: `I-004-I-005-tenant-fields`.
+2. If its milestone is `planned`, set the milestone to `active`. A `planned` milestone holds no issue that is `doing` or `done`.
+3. Set the issue's `status` to `doing`. Every issue in its `depends_on` must already be `done`.
+
+### Finish an issue
+
+1. Set an acceptance item's `done` to `true` once that outcome holds.
+2. Set `status` to `done`. Every acceptance item must be `done: true`, and every `depends_on` issue must be `done`.
+3. For a `backend` issue, the status change goes in the same commit as the code that closes it.
+4. For a `frontend` or `mobile` issue, commit the code in its own repo first. Then commit the change that closes the issue in the backend (see *Work from the frontend or mobile repo*). Both commits start with the issue ID.
+
+### Create an issue
+
+1. Run `git fetch`, then `pm-tree --next-id`. Use the ID it prints. Never number an issue by hand, and never reuse a number: a closed issue keeps its file, so its number stays taken.
+2. Copy the issue template to `pm/M<n>-<slug>/<id>-<slug>.yaml`, and replace every value. `pm-tree --guide` prints the template at its end; it is also `templates/issue.yaml` in the folder `pm-tree --docs` prints.
+3. Write each link once, on one of its two issues:
+   - a dependency on the issue that waits;
+   - a duplicate on the issue that repeats the other;
+   - a related link on either of the two.
+4. Work that needs two repos becomes one issue for each, joined by `depends_on`.
+5. Run `pm-tree`.
+
+A new issue is made on a branch, which can't see the new issues on other branches. So two sessions that number issues at the same time can still take the same number. The branch merged second is first rebased onto `main`, so its pipeline reports the clash. Its issue then takes a new number before it merges. An ID is final once it is on `main`.
+
+### Block, drop or mark a duplicate
+
+- **Blocked or dropped:** set the status, and add a note that says why. Both statuses need at least one note.
+- **Duplicate:** set `status` to `duplicate` and `duplicate_of` to the original issue. The original must not itself be a duplicate.
+- **What depended on it:** an open issue can't depend on a `dropped` or `duplicate` issue, since neither will ever be done. Remove the link, or make it name the original issue instead of the duplicate.
+
+A note is a quoted `date`, in the form `YYYY-MM-DD`, and a non-empty `text`:
+
+```yaml
+notes:
+  - date: "2026-10-02"
+    text: Blocked until a CAPTCHA provider is chosen.
+```
+
+### Move an issue to another milestone
+
+Move its file into that milestone's folder. Nothing in the file changes. The commit reads like `I-007: move to M2`.
+
+### When closed work is needed again
+
+A closed issue is never reopened. When done work turns out broken, or dropped work is needed after all, make a new issue for it, with a `related` link to the old one.
+
+### Close a milestone
+
+Set the milestone's `status` to `done` once its gate criteria in `SPEC.md` are met. Every issue in its folder must be `done`, `dropped` or `duplicate`.
+
+### Find what links to an issue
+
+Each link is written on one issue only. To find what waits on I-003, or what repeats it, search `pm/` for `I-003`.
+
+### Fix the findings
+
+- Each file is first checked on its own. A file that fails to parse, or breaks the schema, stays out of the checks across files until it is fixed. So do issues whose ID another file also claims. That way, one broken file doesn't set off errors in every file that links to it.
+- So fix the errors and run `pm-tree` again. New errors can appear once a fixed file rejoins the checks across files.
+- An error about two issues is reported on one of them, and names the other's file.
+- The three warnings are listed under *Rules*, each with what it means.
+
+### Work from the frontend or mobile repo
+
+- A product with several repos keeps one `pm/` for all of them, in its backend repo. One `pm/` and one run of issue numbers then cover every repo, so an issue in one repo can depend on an issue in another.
+- Open the backend repo beside yours. In Claude Code, use `--add-dir`, or `permissions.additionalDirectories` in your repo's settings. In another tool, open the backend's folder the way it adds a second folder.
+- Run the backend's own `pm-tree` on the backend's `pm/`, so one version checks the whole product. When the repos sit side by side: `../<product>-backend/.venv/bin/pm-tree ../<product>-backend/pm`.
+- Commit in the backend only the `pm/` files you changed. Stage them by name, never with `git add -A` or `git commit -a`, so you can't sweep up backend work that isn't finished.
+- They go in a commit of their own, on a branch made from the backend's `main`, and reach `main` through a merge request.
+- When the backend checkout isn't on `main`, ask the owner first.
+
+### Set up pm/ in a new project
+
+1. `pm/` lives in the backend repo. A project with one repo counts it as its backend.
+2. Add `pm-tree==<version>` to the backend's dev requirements.
+3. Create `pm/`, with one milestone folder for each milestone in `SPEC.md`. Make each milestone and issue from the templates.
+4. Run `pm-tree` in CI as one of the backend's static checks, so every push checks `pm/`. Its job runs `pm-tree` in the environment the dev requirements are installed in.
+5. CI counts `pm/` as documentation, so a merge that changes only `pm/` releases nothing. A pipeline that lists its paths must list `pm/` among the ones that don't deploy.
 
 The backend repo, beside its code:
 
@@ -39,11 +174,19 @@ pm/
     ...
 ```
 
-To start, add `pm-tree==<version>` to the backend's dev requirements, create `pm/` with one milestone folder for each milestone in `SPEC.md`, and make each milestone and issue from the templates.
+### Move to a new version of pm-tree
 
-The pin is exact, never a range. A new version can add a rule that an existing `pm/` breaks. With a range, every repo's pipeline would start failing at once, on merge requests that never touched `pm/`. A repo moves to a new version when its pin is raised, in a merge request of its own that also fixes what the new rules find.
+- The pin is exact, never a range. A new version can add a rule that an existing `pm/` breaks. With a range, every repo's pipeline would start failing at once, on merge requests that never touched `pm/`.
+- A repo moves to a new version when its pin is raised. The pin is raised in a merge request of its own, which also fixes what the new rules find.
 
-CI runs the validator as one of the backend's static checks, so every push checks `pm/`. Its job is `pm-tree`, in the environment the dev requirements are installed in. CI counts `pm/` as documentation, so a merge that changes only `pm/` releases nothing. A pipeline that lists its paths must list `pm/` among the ones that don't deploy.
+## Commits and merge requests
+
+- Nothing is pushed to `main` directly. Every change, to `pm/` as to code, reaches it through a merge request.
+- The merge method is GitLab's merge commit with semi-linear history. So a branch is rebased onto `main` before it merges, and its pipeline validates `pm/` as `main` will hold it.
+- Branches are named after their issues (see *Start an issue*).
+- Every commit that touches an issue starts with its ID, such as `I-003: status doing → done` or `I-007: move to M2`. A commit that touches several issues starts with all their IDs: `I-004, I-005: move to M3`.
+- A merge request's title starts with its issue IDs the same way, so `main` keeps them when the merge request is squashed.
+- Run `pm-tree` before every commit that touches `pm/`.
 
 ## Naming
 
@@ -57,9 +200,7 @@ CI runs the validator as one of the backend's static checks, so every push check
 
 The extension is always `.yaml`, never `.yml`.
 
-An issue's folder is its milestone. To move an issue to another milestone, move its file into that milestone's folder; nothing in the file changes.
-
-IDs are never reused: a closed issue keeps its file, so its number stays taken. Every change reaches `main` through a merge request, so a new issue is made on a branch, which can't see the new issues on other branches. It takes its number from `pm-tree --next-id`, run after `git fetch`, which counts the issues on every local and remote branch. Two sessions that number issues at the same time can still take the same one. The branch merged second is first rebased onto `main` (see [Commit convention](#commit-convention)), so its pipeline reports the clash, and its issue takes a new number before it merges. An ID is final once it is on `main`.
+An issue's folder is its milestone.
 
 ## milestone.yaml
 
@@ -79,7 +220,7 @@ spec: "Milestones, M1"     # where SPEC.md defines this milestone
 | `status` | `planned`, `active` or `done`. |
 | `spec` | A non-empty string: where `SPEC.md` defines the milestone. |
 
-A milestone's goal and gate criteria are written only in `SPEC.md`. Claude Code sets a milestone to `done` when its gate criteria there are met, and the validator checks that every issue in its folder is closed.
+A milestone's goal and gate criteria are written only in `SPEC.md`.
 
 ## Issue file
 
@@ -115,7 +256,7 @@ notes:                     # may be empty, except when blocked or dropped
 | `title` | A non-empty string. |
 | `status` | `todo`, `doing`, `blocked`, `done`, `dropped` or `duplicate`. |
 | `priority` | `high`, `medium` or `low`. |
-| `repo` | `backend`, `frontend` or `mobile`: the repo the issue's work is committed in. Work that needs two repos is split into one issue for each, joined by `depends_on`. Work outside the code is `backend`, the home of `pm/`, and so is every issue of a project with one repo. |
+| `repo` | `backend`, `frontend` or `mobile`: the repo the issue's work is committed in. Work outside the code is `backend`, the home of `pm/`, and so is every issue of a project with one repo. |
 | `spec` | Where `SPEC.md` covers this issue, as a non-empty string, or `null`. |
 | `context` | A non-empty string: why the issue exists. |
 | `scope.in`, `scope.out` | Lists of non-empty strings: what the issue delivers, and what it leaves out. Either may be `[]`. |
@@ -124,10 +265,6 @@ notes:                     # may be empty, except when blocked or dropped
 | `links.related` | Related issues, with no order between them. |
 | `links.duplicate_of` | The issue this one repeats, or `null`. |
 | `notes` | Decisions and blockers, each with a quoted `date` and a non-empty `text`. May be `[]`, except for a `blocked` or `dropped` issue, which needs a note that says why. |
-
-Each link is written once, on one of its two issues. A dependency is written on the issue that waits, a duplicate on the issue that repeats the other, and a related link on either of the two. To find what waits on I-003, or what repeats it, search `pm/` for `I-003`.
-
-A closed issue is never reopened. When done work turns out broken, or dropped work is needed after all, a new issue takes it on, with a `related` link to the old one.
 
 ## Rules
 
@@ -154,7 +291,7 @@ The validator checks every rule below. Each one is an error, except the three ma
 - An issue's file name is its `id`, a hyphen, a slug, and `.yaml`.
 - The `id` in `milestone.yaml` matches its folder.
 - Milestone IDs are unique across `pm/`, and so are issue IDs.
-- IDs have the forms given under [Naming](#naming).
+- IDs have the forms given under *Naming*.
 - **Warning:** two titles that are the same once they are lowercased and stripped of punctuation and whitespace. Milestone titles are compared with milestone titles, and issue titles with issue titles. An issue and the issue it duplicates may share a title, because the duplicate link already records it.
 
 ### Links
@@ -167,67 +304,54 @@ The validator checks every rule below. Each one is an error, except the three ma
 - **Warning:** an open issue (`todo`, `doing` or `blocked`) depends on an issue in a later milestone, one with a higher number. Its own milestone can't be done until the later one has started, so one of the two issues is in the wrong milestone.
 - `duplicate_of` is set if, and only if, the status is `duplicate`.
 - The issue named in `duplicate_of` is not itself a duplicate.
-- An error about two issues is reported on one of them and names the other's file.
 
 ### State
 
 - `done` requires every acceptance item to be `done: true`.
 - `doing` or `done` requires every `depends_on` issue to be `done`.
-- An open issue doesn't depend on a `dropped` or `duplicate` issue, since neither will ever be done. The link is removed, or it names the original issue instead of the duplicate.
+- An open issue doesn't depend on a `dropped` or `duplicate` issue.
 - `blocked` or `dropped` requires at least one note, which says why.
 - **Warning:** a note dated after tomorrow, by the clock of the machine that runs the validator. Tomorrow, not today, leaves room for a clock in another time zone.
 - A milestone that is `planned` has no issue that is `doing` or `done`.
 - A milestone that is `done` requires every issue in its folder to be `done`, `dropped` or `duplicate`.
 
-### How the checks combine
+## Common mistakes
 
-Each file is first checked on its own. A file that fails to parse, or breaks the schema, stays out of the checks across files until it is fixed. So do issues whose ID another file also claims. That way, one broken file doesn't set off errors in every file that links to it. Fix the errors and run the validator again.
+The validator rejects each of these:
 
-## Validator
+| Wrong | Right |
+|---|---|
+| `I-001-model.yml` | `I-001-model.yaml` |
+| `date: 2026-10-02` | `date: "2026-10-02"` |
+| `done: yes`, `done: True`, `done: "true"` | `done: true` |
+| `status: Done`, `priority: High` | `status: done`, `priority: high` |
+| `I-1`, `I-0042`, `M01` | `I-001`, `I-042`, `M1` |
+| a related link written on both issues | on one of them |
+| a key the format doesn't have, such as a goal, an owner or a due date | the goal in `SPEC.md`, and the history in git |
+| `blocked` or `dropped` with no note | a note that says why |
+| `done` with an acceptance item still `false` | every item `done: true` first |
+
+The validator can't see these, so check them yourself:
+
+| Wrong | Right |
+|---|---|
+| an issue numbered by hand | the ID `pm-tree --next-id` prints, after `git fetch` |
+| a closed issue set back to `todo` or `doing` | a new issue, `related` to the old one |
+| an acceptance item set to `done: true` before its outcome holds | `true` only once it holds |
+| a milestone set to `done` before its gate criteria in `SPEC.md` are met | `done` only once they are |
+| backend files staged with `git add -A` from the frontend or mobile repo | only your `pm/` files, staged by name |
+
+## The package
+
+As installed, in the folder `pm-tree --docs` prints:
 
 ```
-pm-tree [path] [--summary | --next-id | --docs]
+pm_tree/
+  README.md                # this guide
+  validate.py              # the validator: Python 3.10+, needs only PyYAML (and git for --next-id)
+  templates/milestone.yaml
+  templates/issue.yaml
+  example/pm/              # a small valid tree that uses every field, status, repo and link type
 ```
 
-`path` is the folder to check, and defaults to `pm/` in the current folder. A session in the frontend or mobile repo runs the backend's own `pm-tree` on the backend's `pm/`, such as `../<product>-backend/.venv/bin/pm-tree ../<product>-backend/pm` when the repos sit side by side, so one version checks the whole product. The validator needs Python 3.10+ and PyYAML, which pip installs with it, and `--next-id` also needs git.
-
-Output:
-
-- The first line is the installed version.
-- Then one line per finding, sorted by path, as `ERROR <path>: <message>` or `WARNING <path>: <message>`.
-- The last line is the count of errors and warnings.
-
-The exit code is 1 if there is any error, and 0 otherwise. Warnings alone exit 0.
-
-```
-pm-tree 1.0.0
-ERROR pm/M1-tenant-core/I-002-tenant-resolution.yaml: status is doing, but depends_on I-001 is todo
-WARNING pm/M2-lead-capture/I-007-lead-export.yaml: title is the same as I-012 (pm/M2-lead-capture/I-012-export-leads-to-csv.yaml), ignoring case, spaces and punctuation
-1 error, 1 warning
-```
-
-`--summary` validates first. If there are errors, it prints them and exits 1. Otherwise it prints, for each milestone, its status, its issue counts by status, and every open issue that is waiting. An issue is waiting when its status is `blocked` or it has a `depends_on` issue that isn't done. Each waiting issue is shown with the IDs it waits on, and a blocked issue also with its latest note, which says why. An active milestone also lists its ready issues: the `todo` issues that wait on nothing, by priority and then by ID. From `example/pm/`:
-
-```
-M2 Lead capture: active
-  issues: 5 (2 todo, 1 doing, 1 blocked, 1 done)
-  waiting:
-    I-008 (blocked): Spam protection on the lead form
-      2026-10-10: Blocked until a CAPTCHA provider is chosen.
-    I-009 (todo) waits on I-006: Email the tenant about each new lead
-  ready:
-    I-007 (low): Export leads to CSV
-```
-
-`--next-id` doesn't validate. After the version line, it prints the ID a new issue takes: one above the highest issue number in `path`, counting the files there and the same folder on every local and remote branch. If git can't read the branches, it prints the error and exits 1.
-
-`--docs` doesn't validate either. After the version line, it prints the folder that holds the installed version's `README.md`, `templates/` and `example/`.
-
-## Commit convention
-
-- Nothing is pushed to `main` directly. Every change, to `pm/` as to code, reaches it through a merge request. The merge method is GitLab's merge commit with semi-linear history, so a branch is rebased onto `main` before it merges, and its pipeline validates `pm/` as `main` will hold it.
-- A branch that works on an issue is named after it, as `<id>-<slug>` like the issue file: `I-007-lead-export`. A branch that works on several starts with all their IDs: `I-004-I-005-tenant-fields`. Before starting an issue, a session runs `git fetch` and looks in the issue's repo for a branch with its ID, such as `git branch -a --list '*I-007-*'`. If there is one, the issue is already being worked on.
-- Every commit that touches an issue starts with its ID, e.g. `I-003: status doing → done` or `I-007: move to M2`. A commit that touches several issues starts with all their IDs: `I-004, I-005: move to M3`. A merge request's title starts with its issue IDs the same way, so `main` keeps them when the merge request is squashed.
-- For a `backend` issue, the status change that closes it goes in the same commit as the code that closes it. For a `frontend` or `mobile` issue, the code is committed in its repo first, then the change that closes the issue is committed in the backend. Both commits start with the issue ID.
-- A session in the frontend or mobile repo commits in the backend only the `pm/` files it changed. It stages them by name, never with `git add -A` or `git commit -a`, so it can't sweep up backend work that isn't finished. They go in a commit of their own, on a branch made from the backend's `main`, and reach `main` through a merge request. When the backend checkout isn't on `main`, the session asks the owner first.
-- Run `pm-tree` before every commit that touches `pm/`.
+The version is in the package's `pyproject.toml`, and the validator prints it first. The owner sets it by hand.

@@ -1,5 +1,5 @@
 # Milestone template. Copy it to pm/M<n>-<slug>/milestone.yaml and replace every value.
-# Every key is required. The format and its rules: run `pm-tree --docs` for its README.md.
+# Every key is required. The format, its rules and how to work in pm/: `pm-tree --guide`.
 id: M1                     # M<n>; must match the folder name M<n>-<slug>
 title: Short milestone title
 status: planned            # planned | active | done

@@ -1,5 +1,5 @@
 # Issue template. Copy it to pm/M<n>-<slug>/<id>-<slug>.yaml and replace every value.
-# Every key is required. The format and its rules: run `pm-tree --docs` for its README.md.
+# Every key is required. The format, its rules and how to work in pm/: `pm-tree --guide`.
 id: I-001                  # I-<nnn>, the next free number; must match the file name
 title: Short issue title
 status: todo               # todo | doing | blocked | done | dropped | duplicate

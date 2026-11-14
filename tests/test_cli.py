@@ -1,6 +1,8 @@
-"""The command line: output format, exit codes, the default path, --summary, --next-id, and the example."""
+"""The command line: output format, exit codes, the default path, --summary, --next-id, --guide,
+--help, and the example."""
 
 import os
+import re
 import subprocess
 import sys
 from importlib.metadata import entry_points, version
@@ -63,6 +65,40 @@ def test_docs_prints_the_folder_of_the_readme_templates_and_example(tmp_path):
     assert run("--docs", cwd=tmp_path) == (0, [f"pm-tree {VERSION}", str(PACKAGE_DIR)])
     for name in ("README.md", "templates/milestone.yaml", "templates/issue.yaml", "example/pm"):
         assert (PACKAGE_DIR / name).exists(), name
+
+
+def test_guide_prints_the_readme_then_both_templates_with_no_pm_folder(tmp_path):
+    code, lines = run("--guide", cwd=tmp_path)
+    assert code == 0
+    assert lines[0] == f"pm-tree {VERSION}"
+    text = "\n".join(lines[1:])
+    readme = (PACKAGE_DIR / "README.md").read_text(encoding="utf-8").rstrip("\n")
+    assert text.startswith(readme)
+    rest = text[len(readme) :]
+    at = -1
+    for name in validate.TEMPLATE_NAMES:
+        template = (PACKAGE_DIR / "templates" / name).read_text(encoding="utf-8").rstrip("\n")
+        block = f"### templates/{name}\n\n```yaml\n{template}\n```"
+        assert rest.index(block) > at, name
+        at = rest.index(block)
+
+
+def test_guide_is_a_mode_of_its_own(tmp_path):
+    assert run("--guide", "--summary", cwd=tmp_path)[0] == 2
+
+
+def test_help_sends_an_llm_to_the_guide(tmp_path):
+    code, lines = run("--help", cwd=tmp_path)
+    assert code == 0
+    assert "For an LLM: run `pm-tree --guide`" in "\n".join(lines)
+
+
+def test_the_guide_covers_every_option_of_the_help(tmp_path):
+    options = set(re.findall(r"--[a-z][a-z-]*", "\n".join(run("--help", cwd=tmp_path)[1]))) - {"--help"}
+    assert options == {"--summary", "--next-id", "--guide", "--docs"}
+    readme = (PACKAGE_DIR / "README.md").read_text(encoding="utf-8")
+    for option in options:
+        assert f"`pm-tree {option}" in readme, option
 
 
 def test_example_has_no_errors_or_warnings():

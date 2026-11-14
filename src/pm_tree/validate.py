@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Check a pm/ folder against the pm-tree format.
 
-    pm-tree [path] [--summary | --next-id | --docs]
+    pm-tree [path] [--summary | --next-id | --guide | --docs]
 
-The format and every rule are described in README.md beside this file; --docs prints its folder.
+README.md beside this file is the guide for the LLM that works in pm/: the format, every rule
+and how to work. --guide prints it with the templates; --docs prints its folder.
 Python 3.10+; the only runtime dependency is PyYAML, and --next-id also needs git.
 """
 
@@ -709,28 +710,78 @@ def plural(count: int, noun: str) -> str:
     return f"{count} {noun}" + ("" if count == 1 else "s")
 
 
+TEMPLATE_NAMES = ("milestone.yaml", "issue.yaml")
+
+HELP_EPILOG = """\
+For an LLM: run `pm-tree --guide` and read all of it before you create, change
+or close anything in pm/. It holds the format, every rule, how to work in pm/,
+and the templates, for the version installed here.
+
+In a session:
+  git fetch
+  pm-tree --summary     each milestone's state: what waits, and what is ready
+  pm-tree --next-id     the ID a new issue takes
+  pm-tree               before every commit that touches pm/
+
+Output: the version, then one line per finding, as "ERROR <path>: <message>"
+or "WARNING <path>: <message>", then the counts. The exit code is 1 on any
+error and 0 otherwise, so warnings alone exit 0.
+"""
+
+
+def guide() -> str:
+    """The guide for the LLM that works in pm/: README.md, then the two templates."""
+    parts = [(PACKAGE_DIR / "README.md").read_text(encoding="utf-8").rstrip("\n"), "", "## Templates"]
+    for name in TEMPLATE_NAMES:
+        template = (PACKAGE_DIR / "templates" / name).read_text(encoding="utf-8").rstrip("\n")
+        parts += ["", f"### templates/{name}", "", "```yaml", template, "```"]
+    return "\n".join(parts)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="pm-tree", description="Check a pm/ folder against the pm-tree format.")
-    parser.add_argument("path", nargs="?", default="pm", help="the folder to check (default: pm in the current folder)")
+    parser = argparse.ArgumentParser(
+        prog="pm-tree",
+        description="Check a pm/ folder, a project's milestones and issues, against the pm-tree format.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default="pm",
+        help="the pm/ folder (default: pm in the current folder); from a frontend or mobile repo, the backend's pm/",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--summary",
         action="store_true",
-        help="when there are no errors, also print each milestone's status, issue counts, waiting and ready issues",
+        help="validate, then, with no errors, print each milestone's status and issue counts, the issues that wait "
+        "and what they wait on, and an active milestone's ready issues",
     )
     mode.add_argument(
         "--next-id",
         action="store_true",
-        help="print the next free issue ID, counting the issues on every local and remote branch (needs git)",
+        help="print the ID a new issue takes, counting the issues on every local and remote branch; run git fetch "
+        "first (needs git; doesn't validate)",
+    )
+    mode.add_argument(
+        "--guide",
+        action="store_true",
+        help="print the guide for LLMs, then the templates: the format, every rule, and how to work in pm/ "
+        "(doesn't validate)",
     )
     mode.add_argument(
         "--docs",
         action="store_true",
-        help="print the folder that holds this version's README.md, templates/ and example/",
+        help="print the folder that holds this version's README.md (the guide), templates/ and example/ "
+        "(doesn't validate)",
     )
     args = parser.parse_args(argv)
 
     print(f"pm-tree {version('pm-tree')}")
+    if args.guide:
+        print(guide())
+        return 0
     if args.docs:
         print(PACKAGE_DIR)
         return 0
