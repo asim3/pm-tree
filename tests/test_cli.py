@@ -1,6 +1,7 @@
 """The command line: output format, exit codes, the default path, --summary, --next-id, --guide,
 --help, and the example."""
 
+import json
 import os
 import re
 import subprocess
@@ -95,7 +96,7 @@ def test_help_sends_an_llm_to_the_guide(tmp_path):
 
 def test_the_guide_covers_every_option_of_the_help(tmp_path):
     options = set(re.findall(r"--[a-z][a-z-]*", "\n".join(run("--help", cwd=tmp_path)[1]))) - {"--help"}
-    assert options == {"--summary", "--next-id", "--guide", "--docs"}
+    assert options == {"--summary", "--next-id", "--guide", "--docs", "--json"}
     readme = (PACKAGE_DIR / "README.md").read_text(encoding="utf-8")
     for option in options:
         assert f"`pm-tree {option}" in readme, option
@@ -278,6 +279,96 @@ def test_summary_with_errors_prints_them_and_exits_1(tmp_path):
 def test_summary_of_an_empty_pm(tmp_path):
     Path(tmp_path / "pm").mkdir()
     assert run("--summary", cwd=tmp_path) == (0, [f"pm-tree {VERSION}", "0 errors, 0 warnings", "", "no milestones"])
+
+
+def run_json(*args, cwd):
+    code, lines = run(*args, "--json", cwd=cwd)
+    return code, json.loads("\n".join(lines))
+
+
+def test_json_summary_of_the_example():
+    code, document = run_json("pm", "--summary", cwd=PACKAGE_DIR / "example")
+    assert code == 0
+    assert list(document) == ["version", "findings", "errors", "warnings", "milestones"]
+    assert (document["version"], document["findings"], document["errors"], document["warnings"]) == (VERSION, [], 0, 0)
+    m1, m2, m3 = document["milestones"]
+    assert m1 == {
+        "id": "M1",
+        "path": "pm/M1-tenant-core/milestone.yaml",
+        "title": "Tenant core",
+        "status": "done",
+        "issues": {"total": 4, "todo": 0, "doing": 0, "blocked": 0, "done": 2, "dropped": 1, "duplicate": 1},
+        "waiting": [],
+        "ready": None,
+    }
+    assert [issue["id"] for issue in m2["waiting"]] == ["I-008", "I-009"]
+    assert [issue["id"] for issue in m2["ready"]] == ["I-007"]
+    assert m3["waiting"] == [{
+        "id": "I-010",
+        "path": "pm/M3-reporting/I-010-leads-by-source.yaml",
+        "status": "todo",
+        "title": "Leads by source report",
+        "waits_on": ["I-009"],
+        "note": None,
+    }]
+    assert m3["ready"] is None  # M3 is only planned
+
+
+def test_the_guides_json_example_is_the_real_output():
+    readme = (PACKAGE_DIR / "README.md").read_text(encoding="utf-8")
+    shown = json.loads(re.search(r"```json\n(.*?)\n```", readme, re.S).group(1))
+    _, document = run_json("pm", "--summary", cwd=PACKAGE_DIR / "example")
+    document["milestones"] = [m for m in document["milestones"] if m["id"] == "M2"]  # the guide shows M2 only
+    del shown["version"], document["version"]  # the guide's version moves with the maintainer's releases, by hand
+    assert shown == document
+
+
+def test_json_without_summary_has_findings_and_counts_only(tmp_path):
+    tree = base_tree()
+    put(tree, I5, issue("I-005", "Lead form"))  # a warning on I-002 and I-005
+    write_tree(tmp_path / "pm", tree)
+    code, document = run_json(cwd=tmp_path)
+    assert code == 0
+    assert document == {
+        "version": VERSION,
+        "findings": [
+            {"severity": "WARNING", "path": "pm/M1-core/I-002-form.yaml",
+             "message": "title is the same as I-005 (pm/M2-later/I-005-first.yaml), ignoring case, spaces and punctuation"},
+            {"severity": "WARNING", "path": "pm/M2-later/I-005-first.yaml",
+             "message": "title is the same as I-002 (pm/M1-core/I-002-form.yaml), ignoring case, spaces and punctuation"},
+        ],
+        "errors": 0,
+        "warnings": 2,
+    }
+
+
+def test_json_summary_with_errors_has_no_milestones_and_exits_1(tmp_path):
+    tree = base_tree()
+    doc(tree, I3)["priority"] = "urgent"
+    write_tree(tmp_path / "pm", tree)
+    code, document = run_json("--summary", cwd=tmp_path)
+    assert code == 1
+    assert document == {
+        "version": VERSION,
+        "findings": [{"severity": "ERROR", "path": "pm/M1-core/I-003-export.yaml",
+                      "message": "priority must be one of high, medium, low, got 'urgent'"}],
+        "errors": 1,
+        "warnings": 0,
+        "milestones": None,
+    }
+
+
+def test_json_summary_of_an_empty_pm(tmp_path):
+    Path(tmp_path / "pm").mkdir()
+    assert run_json("--summary", cwd=tmp_path) == (
+        0, {"version": VERSION, "findings": [], "errors": 0, "warnings": 0, "milestones": []}
+    )
+
+
+def test_json_works_only_on_its_own_or_with_summary(tmp_path):
+    for option in ("--next-id", "--guide", "--docs"):
+        code, lines = run(option, "--json", cwd=tmp_path)
+        assert (code, lines) == (2, []), option
 
 
 def test_next_id_counts_the_working_tree_and_every_local_and_remote_branch(tmp_path):

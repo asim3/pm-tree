@@ -24,6 +24,7 @@ Run the copy your repo pins: `.venv/bin/pm-tree`, or `pm-tree` in the environmen
 |---|---|---|---|
 | `pm-tree [path]` | yes | one line per finding, then the counts | 1 on any error, 0 otherwise |
 | `pm-tree --summary [path]` | yes | the findings and the counts; with no errors, each milestone's state | 1 on any error, 0 otherwise |
+| `pm-tree --json [path]`, `pm-tree --summary --json [path]` | yes | instead of the version line and the text, one JSON document (see *--json*) | 1 on any error, 0 otherwise |
 | `pm-tree --next-id [path]` | no | the ID a new issue takes; outside a git repo, a warning first | 1 if git can't read the branches, 0 otherwise |
 | `pm-tree --guide` | no | this guide, then the templates | 0 |
 | `pm-tree --docs` | no | the folder that holds this version's `README.md` (this guide), `templates/` and `example/` | 0 |
@@ -67,6 +68,62 @@ M2 Lead capture: active
   ready:
     I-007 (low): Export leads to CSV
 ```
+
+### --json
+
+`--json` prints one JSON document instead of the text, for a program to read. Use it on its own, as `pm-tree --json`, or as `pm-tree --summary --json`. It doesn't work with the other options. The exit codes are the same. There is no version line, because the version is in the document.
+
+From `example/pm/`, with `--summary`, showing M2 only:
+
+```json
+{
+  "version": "1.1.0",
+  "findings": [],
+  "errors": 0,
+  "warnings": 0,
+  "milestones": [
+    {
+      "id": "M2",
+      "path": "pm/M2-lead-capture/milestone.yaml",
+      "title": "Lead capture",
+      "status": "active",
+      "issues": {"total": 5, "todo": 2, "doing": 1, "blocked": 1, "done": 1, "dropped": 0, "duplicate": 0},
+      "waiting": [
+        {
+          "id": "I-008",
+          "path": "pm/M2-lead-capture/I-008-form-spam-protection.yaml",
+          "status": "blocked",
+          "title": "Spam protection on the lead form",
+          "waits_on": [],
+          "note": {"date": "2026-10-10", "text": "Blocked until a CAPTCHA provider is chosen."}
+        },
+        {
+          "id": "I-009",
+          "path": "pm/M2-lead-capture/I-009-new-lead-email.yaml",
+          "status": "todo",
+          "title": "Email the tenant about each new lead",
+          "waits_on": ["I-006"],
+          "note": null
+        }
+      ],
+      "ready": [
+        {"id": "I-007", "path": "pm/M2-lead-capture/I-007-lead-export.yaml", "priority": "low", "title": "Export leads to CSV"}
+      ]
+    }
+  ]
+}
+```
+
+| Key | Value |
+|---|---|
+| `version` | The installed version. |
+| `findings` | One object per finding, sorted by path, with `severity` (`ERROR` or `WARNING`), `path` and `message`. |
+| `errors`, `warnings` | The counts. |
+| `milestones` | Only with `--summary`. One object per milestone, in order, and `[]` when there are none. `null` when there are errors. |
+| `id`, `path`, `title`, `status` | The milestone. `path` is its `milestone.yaml`. |
+| `issues` | `total`, and the count of each issue status, `0` included. |
+| `waiting` | The open issues that wait, each with `id`, `path`, `status`, `title`, `waits_on` and `note`. `waits_on` holds the `depends_on` IDs that aren't done. `note` is a blocked issue's latest note, as `date` and `text`, and `null` for any other issue. |
+| `ready` | In an active milestone, the ready issues, by priority and then by ID, each with `id`, `path`, `priority` and `title`. `null` in a milestone that isn't active. |
 
 ### --next-id
 

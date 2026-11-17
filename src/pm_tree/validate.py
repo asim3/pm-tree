@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a pm/ folder against the pm-tree format.
 
-    pm-tree [path] [--summary | --next-id | --guide | --docs]
+    pm-tree [path] [--summary | --next-id | --guide | --docs] [--json]
 
 README.md beside this file is the guide for the LLM that works in pm/: the format, every rule
 and how to work. --guide prints it with the templates; --docs prints its folder.
@@ -11,6 +11,7 @@ Python 3.10+; the only runtime dependency is PyYAML. --next-id uses git when pm/
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -729,40 +730,88 @@ def next_issue_id(root: Path) -> tuple[str, bool]:
 # --- CLI ---------------------------------------------------------------------
 
 
-def summary(result: Validator) -> list[str]:
+def summary_data(result: Validator) -> list[dict]:
     """Per milestone: its status, issue counts by status, the open issues that are waiting, and, in an
-    active milestone, the issues ready to start."""
-    if not result.milestones:
-        return ["no milestones"]
-    lines = []
+    active milestone, the issues ready to start. --summary prints it as text, and --json as it is."""
+    milestones = []
     for milestone in result.milestones:
-        title = " ".join(milestone.data["title"].split())
         status = milestone.data["status"]
-        lines.append(f"{milestone.id} {title}: {status}")
         counts = Counter(issue.status for issue in milestone.issues)
-        breakdown = ", ".join(f"{counts[status]} {status}" for status in ISSUE_STATUSES if counts[status])
-        lines.append(f"  issues: {len(milestone.issues)}" + (f" ({breakdown})" if breakdown else ""))
         waiting, ready = [], []
         for issue in milestone.issues:
             if issue.status in CLOSED_STATUSES:
                 continue
             waits_on = [dep for dep in issue.links("depends_on") if result.issues[dep].status != "done"]
             if issue.status == "blocked" or waits_on:
-                on = f" waits on {', '.join(waits_on)}" if waits_on else ""
-                waiting.append(f"    {issue.id} ({issue.status}){on}: {issue.title}")
+                note = None
                 if issue.status == "blocked":
                     # The latest note says why; of two on the same day, the one written last.
-                    note = max(reversed(issue.data["notes"]), key=lambda note: note["date"])
-                    waiting.append(f"      {note['date']}: {' '.join(note['text'].split())}")
+                    latest = max(reversed(issue.data["notes"]), key=lambda note: note["date"])
+                    note = {"date": latest["date"], "text": " ".join(latest["text"].split())}
+                waiting.append({
+                    "id": issue.id,
+                    "path": issue.path,
+                    "status": issue.status,
+                    "title": issue.title,
+                    "waits_on": waits_on,
+                    "note": note,
+                })
             elif issue.status == "todo":
                 ready.append(issue)
-        lines.append("  waiting:" + ("" if waiting else " none"))
-        lines += waiting
-        if status == "active":
-            ready.sort(key=lambda issue: (PRIORITIES.index(issue.data["priority"]), natural_key(issue.id)))
-            lines.append("  ready:" + ("" if ready else " none"))
-            lines += [f"    {issue.id} ({issue.data['priority']}): {issue.title}" for issue in ready]
+        ready.sort(key=lambda issue: (PRIORITIES.index(issue.data["priority"]), natural_key(issue.id)))
+        milestones.append({
+            "id": milestone.id,
+            "path": milestone.path,
+            "title": " ".join(milestone.data["title"].split()),
+            "status": status,
+            "issues": {"total": len(milestone.issues), **{s: counts[s] for s in ISSUE_STATUSES}},
+            "waiting": waiting,
+            "ready": [
+                {"id": issue.id, "path": issue.path, "priority": issue.data["priority"], "title": issue.title}
+                for issue in ready
+            ] if status == "active" else None,
+        })
+    return milestones
+
+
+def summary(result: Validator) -> list[str]:
+    """The summary as the text --summary prints."""
+    milestones = summary_data(result)
+    if not milestones:
+        return ["no milestones"]
+    lines = []
+    for milestone in milestones:
+        lines.append(f"{milestone['id']} {milestone['title']}: {milestone['status']}")
+        counts = milestone["issues"]
+        breakdown = ", ".join(f"{counts[status]} {status}" for status in ISSUE_STATUSES if counts[status])
+        lines.append(f"  issues: {counts['total']}" + (f" ({breakdown})" if breakdown else ""))
+        lines.append("  waiting:" + ("" if milestone["waiting"] else " none"))
+        for issue in milestone["waiting"]:
+            on = f" waits on {', '.join(issue['waits_on'])}" if issue["waits_on"] else ""
+            lines.append(f"    {issue['id']} ({issue['status']}){on}: {issue['title']}")
+            if issue["note"]:
+                lines.append(f"      {issue['note']['date']}: {issue['note']['text']}")
+        if milestone["ready"] is not None:
+            lines.append("  ready:" + ("" if milestone["ready"] else " none"))
+            lines += [f"    {issue['id']} ({issue['priority']}): {issue['title']}" for issue in milestone["ready"]]
     return lines
+
+
+def report(result: Validator, with_summary: bool) -> dict:
+    """What --json prints: the version, the findings and the counts, and, with --summary, the milestones."""
+    errors = sum(finding.severity == "ERROR" for finding in result.findings)
+    document = {
+        "version": version("pm-tree"),
+        "findings": [
+            {"severity": finding.severity, "path": finding.path, "message": finding.message}
+            for finding in result.findings
+        ],
+        "errors": errors,
+        "warnings": len(result.findings) - errors,
+    }
+    if with_summary:
+        document["milestones"] = None if errors else summary_data(result)
+    return document
 
 
 def plural(count: int, noun: str) -> str:
@@ -785,8 +834,9 @@ In a session:
   pm-tree               before every commit that touches pm/
 
 Output: the version, then one line per finding, as "ERROR <path>: <message>"
-or "WARNING <path>: <message>", then the counts. The exit code is 1 on any
-error and 0 otherwise, so warnings alone exit 0.
+or "WARNING <path>: <message>", then the counts. With --json, one JSON
+document instead, described in the guide. The exit code is 1 on any error
+and 0 otherwise, so warnings alone exit 0.
 """
 
 
@@ -837,8 +887,20 @@ def main(argv: list[str] | None = None) -> int:
         help="print the folder that holds this version's README.md (the guide), templates/ and example/ "
         "(doesn't validate)",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="with no option or with --summary: print one JSON document instead of the text, with the version, the "
+        "findings, the counts and, with --summary, the milestones; same exit codes",
+    )
     args = parser.parse_args(argv)
+    if args.json and (args.next_id or args.guide or args.docs):
+        parser.error("--json works only on its own or with --summary")
 
+    if args.json:
+        result = validate(Path(args.path))
+        print(json.dumps(report(result, args.summary), indent=2, ensure_ascii=False))
+        return 1 if any(finding.severity == "ERROR" for finding in result.findings) else 0
     print(f"pm-tree {version('pm-tree')}")
     if args.guide:
         print(guide())
