@@ -53,8 +53,8 @@ def repo_with_base_tree(path):
     return path
 
 
-def test_version_is_1_1_0():
-    assert VERSION == "1.1.0"
+def test_version_is_1_2_0():
+    assert VERSION == "1.2.0"
 
 
 def test_the_command_is_pm_tree():

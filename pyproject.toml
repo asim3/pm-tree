@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pm-tree"
-version = "1.1.0"
+version = "1.2.0"
 description = "A strict, file-based project-management format, designed for LLMs such as Claude Code, and its validator."
 readme = "src/pm_tree/README.md"
 license = "MIT"
