@@ -24,11 +24,11 @@ Run the copy your repo pins: `.venv/bin/pm-tree`, or `pm-tree` in the environmen
 |---|---|---|---|
 | `pm-tree [path]` | yes | one line per finding, then the counts | 1 on any error, 0 otherwise |
 | `pm-tree --summary [path]` | yes | the findings and the counts; with no errors, each milestone's state | 1 on any error, 0 otherwise |
-| `pm-tree --next-id [path]` | no | the ID a new issue takes | 1 if git can't read the branches, 0 otherwise |
+| `pm-tree --next-id [path]` | no | the ID a new issue takes; outside a git repo, a warning first | 1 if git can't read the branches, 0 otherwise |
 | `pm-tree --guide` | no | this guide, then the templates | 0 |
 | `pm-tree --docs` | no | the folder that holds this version's `README.md` (this guide), `templates/` and `example/` | 0 |
 
-`path` is the `pm/` folder, and defaults to `pm` in the current folder. The validator needs Python 3.10+ and PyYAML, which pip installs with it. `--next-id` also needs git.
+`path` is the `pm/` folder, and defaults to `pm` in the current folder. The validator needs Python 3.10+ and PyYAML, which pip installs with it. `--next-id` also uses git when `path` is in a git repo.
 
 ### Validating
 
@@ -71,6 +71,14 @@ M2 Lead capture: active
 ### --next-id
 
 `--next-id` doesn't validate. After the version line, it prints the ID a new issue takes: one above the highest issue number in `path`. It counts the files there, and the same folder on every local and remote branch. If git can't read the branches, it prints the error and exits 1.
+
+When `path` isn't in a git repo, there are no branches to count, so it counts only the files in `path`. It prints a warning before the ID and exits 0 (see *Without git*). The same happens when git isn't installed, unless `path` is in a git repo after all. Its branches can't be read then, so that is an error.
+
+```
+pm-tree 1.1.0
+WARNING pm: is not in a git repo, so only its own issue files were counted
+I-011
+```
 
 ## How to work in pm/
 
@@ -176,6 +184,19 @@ pm/
   M2-<slug>/
     ...
 ```
+
+### Without git
+
+`pm/` also works in a folder that isn't a git repo:
+
+- `pm-tree` and `pm-tree --summary` never use git, so they work the same.
+- `pm-tree --next-id` counts only the issue files in `pm/`, and warns that it did.
+- Skip every step that runs git: `git fetch`, branches, commits and merge requests.
+
+What is lost without git:
+
+- **History.** The files hold no dates and no assignees, because git records who changed what, and when. Without git, nothing does.
+- **Numbering across copies.** With no branches to count, `--next-id` can't see issues added in another copy of `pm/`. Add issues in one copy only, or two copies can take the same number.
 
 ### Move to a new version of pm-tree
 
@@ -376,7 +397,7 @@ As installed, in the folder `pm-tree --docs` prints:
 ```
 pm_tree/
   README.md                # this guide
-  validate.py              # the validator: Python 3.10+, needs only PyYAML (and git for --next-id)
+  validate.py              # the validator: Python 3.10+, needs only PyYAML (and git for --next-id in a git repo)
   templates/milestone.yaml
   templates/issue.yaml
   templates/config.yaml

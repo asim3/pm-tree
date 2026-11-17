@@ -5,12 +5,13 @@
 
 README.md beside this file is the guide for the LLM that works in pm/: the format, every rule
 and how to work. --guide prints it with the templates; --docs prints its folder.
-Python 3.10+; the only runtime dependency is PyYAML, and --next-id also needs git.
+Python 3.10+; the only runtime dependency is PyYAML. --next-id uses git when pm/ is in a git repo.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -668,32 +669,61 @@ class NextIdError(Exception):
     """Why the issue numbers on the branches couldn't be read."""
 
 
+def run_git(folder: Path, *args: str) -> subprocess.CompletedProcess:
+    # LC_ALL=C keeps git's messages in English, so in_git_repo can recognise "not a git repository".
+    env = {**os.environ, "LC_ALL": "C"}
+    return subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, env=env)
+
+
+def git_failed(command: str, result: subprocess.CompletedProcess) -> NextIdError:
+    message = result.stderr.strip().splitlines() or [f"exit code {result.returncode}"]
+    return NextIdError(f"git {command} failed: {message[0]}")
+
+
 def git(folder: Path, *args: str) -> str:
-    try:
-        result = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
-    except FileNotFoundError:
-        raise NextIdError("--next-id needs git, which is not installed") from None
+    result = run_git(folder, *args)
     if result.returncode:
-        message = result.stderr.strip().splitlines() or [f"exit code {result.returncode}"]
-        raise NextIdError(f"git {args[0]} failed: {message[0]}")
+        raise git_failed(args[0], result)
     return result.stdout
 
 
-def next_issue_id(root: Path) -> str:
-    """One above the highest issue number in root, and in the same folder on every local and remote branch."""
+def in_git_repo(root: Path) -> bool:
+    """Whether root is in a git repo. Any other failure of git is an error, not a reason to leave the branches out."""
+    try:
+        result = run_git(root, "rev-parse", "--git-dir")
+    except FileNotFoundError:
+        # With no git to ask, look for the .git folder or file that git would find.
+        if any((folder / ".git").exists() for folder in (root.resolve(), *root.resolve().parents)):
+            raise NextIdError("is in a git repo, but git is not installed, so the branches can't be read") from None
+        return False
+    if result.returncode == 0:
+        return True
+    if "not a git repository" in result.stderr:
+        return False
+    raise git_failed("rev-parse", result)
+
+
+def next_issue_id(root: Path) -> tuple[str, bool]:
+    """One above the highest issue number in root, and in the same folder on every local and remote branch.
+
+    Outside a git repo, there are no branches, so only root is counted. The flag says whether the
+    branches were.
+    """
     if not root.is_dir():
         raise NextIdError("is not a folder" if root.exists() else "does not exist")
     names = [path.relative_to(root).as_posix() for path in root.glob("*/*.yaml")]
-    for ref in git(root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").split():
-        # Run inside root, ls-tree lists only root's part of the branch, with paths relative to it.
-        names += git(root, "ls-tree", "-r", "--name-only", ref).splitlines()
+    with_branches = in_git_repo(root)
+    if with_branches:
+        for ref in git(root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").split():
+            # Run inside root, ls-tree lists only root's part of the branch, with paths relative to it.
+            names += git(root, "ls-tree", "-r", "--name-only", ref).splitlines()
     numbers = []
     for name in names:
         folder, _, file = name.partition("/")
         match = ISSUE_FILE_RE.fullmatch(file)
         if match and MILESTONE_FOLDER_RE.fullmatch(folder):
             numbers.append(int(match.group(1)[2:]))
-    return f"I-{max(numbers, default=0) + 1:03d}"
+    return f"I-{max(numbers, default=0) + 1:03d}", with_branches
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -738,6 +768,8 @@ def summary(result: Validator) -> list[str]:
 def plural(count: int, noun: str) -> str:
     return f"{count} {noun}" + ("" if count == 1 else "s")
 
+
+NO_GIT_WARNING = "is not in a git repo, so only its own issue files were counted"
 
 TEMPLATE_NAMES = ("milestone.yaml", "issue.yaml", "config.yaml")
 
@@ -791,7 +823,7 @@ def main(argv: list[str] | None = None) -> int:
         "--next-id",
         action="store_true",
         help="print the ID a new issue takes, counting the issues on every local and remote branch; run git fetch "
-        "first (needs git; doesn't validate)",
+        "first. Outside a git repo, it counts only the issues in pm/, and warns that it did (doesn't validate)",
     )
     mode.add_argument(
         "--guide",
@@ -816,10 +848,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.next_id:
         try:
-            print(next_issue_id(Path(args.path)))
+            next_id, with_branches = next_issue_id(Path(args.path))
         except NextIdError as err:
             print(Finding("ERROR", Path(args.path).as_posix(), str(err)))
             return 1
+        if not with_branches:
+            print(Finding("WARNING", Path(args.path).as_posix(), NO_GIT_WARNING))
+        print(next_id)
         return 0
     result = validate(Path(args.path))
     for finding in result.findings:

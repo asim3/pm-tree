@@ -316,13 +316,70 @@ def test_next_id_of_an_empty_pm_is_i_001(tmp_path):
     assert run("--next-id", cwd=tmp_path) == (0, [f"pm-tree {VERSION}", "I-001"])
 
 
-def test_next_id_outside_a_git_repo_exits_1(tmp_path):
+NO_GIT_WARNING = "WARNING pm: is not in a git repo, so only its own issue files were counted"
+
+
+def no_repo(tmp_path):
+    return {"GIT_CEILING_DIRECTORIES": str(tmp_path)}
+
+
+def no_git(tmp_path):
+    """A PATH with no git on it."""
+    (tmp_path / "empty-bin").mkdir()
+    return {"PATH": str(tmp_path / "empty-bin"), **no_repo(tmp_path)}
+
+
+def test_next_id_outside_a_git_repo_counts_the_files_and_warns(tmp_path):
     write_tree(tmp_path / "pm", base_tree())
-    code, lines = run("--next-id", cwd=tmp_path, env={"GIT_CEILING_DIRECTORIES": str(tmp_path)})
+    write_issue(tmp_path, "M2-later/I-009-ninth.yaml", issue("I-009", "Ninth"))
+    assert run("--next-id", cwd=tmp_path, env=no_repo(tmp_path)) == (0, [f"pm-tree {VERSION}", NO_GIT_WARNING, "I-010"])
+
+
+def test_next_id_of_an_empty_pm_outside_a_git_repo_is_i_001(tmp_path):
+    (tmp_path / "pm").mkdir()
+    assert run("--next-id", cwd=tmp_path, env=no_repo(tmp_path)) == (0, [f"pm-tree {VERSION}", NO_GIT_WARNING, "I-001"])
+
+
+def test_next_id_with_no_git_installed_counts_the_files_and_warns(tmp_path):
+    write_tree(tmp_path / "pm", base_tree())
+    assert run("--next-id", cwd=tmp_path, env=no_git(tmp_path)) == (0, [f"pm-tree {VERSION}", NO_GIT_WARNING, "I-005"])
+
+
+def test_next_id_in_a_git_repo_with_no_git_installed_exits_1(tmp_path):
+    (tmp_path / "repo" / ".git").mkdir(parents=True)
+    write_tree(tmp_path / "repo" / "pm", base_tree())
+    assert run("--next-id", cwd=tmp_path / "repo", env=no_git(tmp_path)) == (1, [
+        f"pm-tree {VERSION}",
+        "ERROR pm: is in a git repo, but git is not installed, so the branches can't be read",
+    ])
+
+
+def test_next_id_in_a_repo_git_can_not_read_exits_1(tmp_path):
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".git").write_text("not a gitfile\n")
+    write_tree(tmp_path / "repo" / "pm", base_tree())
+    code, lines = run("--next-id", cwd=tmp_path / "repo", env=no_repo(tmp_path))
     assert code == 1
     assert lines[0] == f"pm-tree {VERSION}"
-    assert lines[1].startswith("ERROR pm: git for-each-ref failed: fatal: not a git repository")
+    assert lines[1].startswith("ERROR pm: git rev-parse failed: fatal: invalid gitfile format")
     assert len(lines) == 2
+
+
+def test_next_id_reads_git_in_english_whatever_the_locale(tmp_path):
+    """A stand-in git that answers in German unless LC_ALL is C, as a translated git would."""
+    bin_dir = tmp_path / "german-bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "git"
+    fake.write_text(
+        '#!/bin/sh\n'
+        'if [ "$LC_ALL" = C ]; then echo "fatal: not a git repository (or any of the parent directories): .git" >&2\n'
+        'else echo "fatal: Kein Git-Repository (oder irgendeines der Elternverzeichnisse): .git" >&2; fi\n'
+        'exit 128\n'
+    )
+    fake.chmod(0o755)
+    (tmp_path / "pm").mkdir()
+    env = {"PATH": str(bin_dir), "LC_ALL": "de_DE.UTF-8", "LANGUAGE": "de"}
+    assert run("--next-id", cwd=tmp_path, env=env) == (0, [f"pm-tree {VERSION}", NO_GIT_WARNING, "I-001"])
 
 
 def test_next_id_of_a_missing_folder_exits_1(tmp_path):

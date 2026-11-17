@@ -17,7 +17,7 @@ python3 -m venv .venv
 
 - `tests/test_rules.py` gives every rule at least one passing and one failing fixture. Each fixture is a small change to a valid base tree. A failing fixture lists every finding it must produce, so it fails if it sets off anything else. The fixtures run with a fixed today, 2030-01-01, so their notes are never in the future.
 - `tests/test_templates.py` checks that the templates hold the schema's full key set, in its order, and that their values pass the schema. The issue template starts with no notes, so a copy can't keep a made-up dated note; it shows a note in a comment, which the test reads.
-- `tests/test_cli.py` checks the output format, the exit codes, the `pm-tree` command, `--summary`, `--guide`, `--docs`, `--help`, and `--next-id` on scratch git repos. It checks that the guide names every option `--help` lists. It also checks that `example/pm/` validates with no errors and no warnings and uses every status, priority, repo and link type.
+- `tests/test_cli.py` checks the output format, the exit codes, the `pm-tree` command, `--summary`, `--guide`, `--docs`, `--help`, and `--next-id` in scratch git repos, outside one, and with no git installed. It checks that the guide names every option `--help` lists. It also checks that `example/pm/` validates with no errors and no warnings and uses every status, priority, repo and link type.
 
 CI runs the tests on Python 3.10 and 3.14 on every push and pull request.
 
