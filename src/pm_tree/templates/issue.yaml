@@ -4,7 +4,7 @@ id: I-001                  # I-<nnn>, the next free number; must match the file 
 title: Short issue title
 status: todo               # todo | doing | blocked | done | dropped | duplicate
 priority: medium           # high | medium | low
-repo: backend              # backend | frontend | mobile: the repo its work is committed in
+repo: backend              # the repo its work is committed in: one in pm/config.yaml, else backend | frontend | mobile
 spec: "section 1"          # where the spec covers this, as a quoted string, or null
 context: >
   Why this issue exists, in one paragraph.

@@ -2,14 +2,15 @@
 
 This guide is for you, the LLM working in a project that tracks its work in `pm/`. It is not written for a human reader. Read all of it before you create, change or close anything in `pm/`.
 
-`pm-tree --guide` prints this guide, followed by the two templates. It describes the version your repo pins, which `pm-tree` prints on its first line.
+`pm-tree --guide` prints this guide, followed by the templates. It describes the version your repo pins, which `pm-tree` prints on its first line.
 
 pm-tree is two things: a file-based project-management format, and `pm-tree`, a strict validator for it.
 
 ## What pm/ is
 
 - `pm/` is the main interface between the maintainer and you. The maintainer reviews `pm/`, not the code.
-- It holds one folder per milestone, and one YAML file per issue.
+- It holds one folder per milestone, and one YAML file per issue. It also holds `config.yaml` when the project's repos are not `backend`, `frontend` and `mobile`.
+- It lives in the home repo: the first repo `config.yaml` lists, or `backend` without it. A project with one repo counts it as its home repo.
 - You work from the issues, and you keep them up to date as you work.
 - You close issues and milestones on your own judgment. Ask the maintainer only when one needs them, such as for a decision.
 - Each fact is written once. A milestone's goal and gate criteria stay in the project's `SPEC.md`. Each link between two issues is written on one of them.
@@ -90,8 +91,8 @@ M2 Lead capture: active
 
 1. Set an acceptance item's `done` to `true` once that outcome holds.
 2. Set `status` to `done`. Every acceptance item must be `done: true`, and every `depends_on` issue must be `done`.
-3. For a `backend` issue, the status change goes in the same commit as the code that closes it.
-4. For a `frontend` or `mobile` issue, commit the code in its own repo first. Then commit the change that closes the issue in the backend (see *Work from the frontend or mobile repo*). Both commits start with the issue ID.
+3. For an issue whose `repo` is the home repo, the status change goes in the same commit as the code that closes it.
+4. For an issue in another repo, commit the code in its own repo first. Then commit the change that closes the issue in the home repo (see *Work from another repo*). Both commits start with the issue ID.
 
 ### Create an issue
 
@@ -143,29 +144,31 @@ Each link is written on one issue only. To find what waits on I-003, or what rep
 - An error about two issues is reported on one of them, and names the other's file.
 - The three warnings are listed under *Rules*, each with what it means.
 
-### Work from the frontend or mobile repo
+### Work from another repo
 
-- A product with several repos keeps one `pm/` for all of them, in its backend repo. One `pm/` and one run of issue numbers then cover every repo, so an issue in one repo can depend on an issue in another.
-- Open the backend repo beside yours. In Claude Code, use `--add-dir`, or `permissions.additionalDirectories` in your repo's settings. In another tool, open the backend's folder the way it adds a second folder.
-- Run the backend's own `pm-tree` on the backend's `pm/`, so one version checks the whole product. When the repos sit side by side: `../<product>-backend/.venv/bin/pm-tree ../<product>-backend/pm`.
-- Commit in the backend only the `pm/` files you changed. Stage them by name, never with `git add -A` or `git commit -a`, so you can't sweep up backend work that isn't finished.
-- They go in a commit of their own, on a branch made from the backend's `main`, and reach `main` through a merge request.
-- When the backend checkout isn't on `main`, ask the maintainer first.
+- A product with several repos keeps one `pm/` for all of them, in its home repo. One `pm/` and one run of issue numbers then cover every repo, so an issue in one repo can depend on an issue in another.
+- Open the home repo beside yours. In Claude Code, use `--add-dir`, or `permissions.additionalDirectories` in your repo's settings. In another tool, open the home repo's folder the way it adds a second folder.
+- Run the home repo's own `pm-tree` on its `pm/`, so one version checks the whole product. When the repos sit side by side: `../<home-repo>/.venv/bin/pm-tree ../<home-repo>/pm`.
+- Commit in the home repo only the `pm/` files you changed. Stage them by name, never with `git add -A` or `git commit -a`, so you can't sweep up work there that isn't finished.
+- They go in a commit of their own, on a branch made from the home repo's `main`, and reach `main` through a merge request.
+- When the home repo's checkout isn't on `main`, ask the maintainer first.
 
 ### Set up pm/ in a new project
 
-1. `pm/` lives in the backend repo. A project with one repo counts it as its backend.
-2. Add `pm-tree==<version>` to the backend's dev requirements.
+1. `pm/` lives in the home repo: the backend, or the only repo of a project with one.
+2. Add `pm-tree==<version>` to the home repo's dev requirements.
 3. Create `pm/`, with one milestone folder for each milestone in `SPEC.md`. Make each milestone and issue from the templates.
-4. Run `pm-tree` in CI as one of the backend's static checks, so every push checks `pm/`. Its job runs `pm-tree` in the environment the dev requirements are installed in.
-5. CI counts `pm/` as documentation, so a merge that changes only `pm/` releases nothing. A pipeline that lists its paths must list `pm/` among the ones that don't deploy.
+4. If the project's repos are not `backend`, `frontend` and `mobile`, make `pm/config.yaml` from its template. List every repo, the home repo first. Work that isn't software, such as documents or approvals, still names the repo it is kept in.
+5. Run `pm-tree` in CI as one of the home repo's static checks, so every push checks `pm/`. Its job runs `pm-tree` in the environment the dev requirements are installed in.
+6. CI counts `pm/` as documentation, so a merge that changes only `pm/` releases nothing. A pipeline that lists its paths must list `pm/` among the ones that don't deploy.
 
-The backend repo, beside its code:
+The home repo, beside its code:
 
 ```
 SPEC.md                    # the project's spec, which milestones and issues point into
 requirements-dev.txt       # pins pm-tree, such as pm-tree==1.1.0
 pm/
+  config.yaml              # only when the repos are not backend, frontend and mobile
   M1-<slug>/
     milestone.yaml
     I-001-<slug>.yaml
@@ -197,10 +200,28 @@ pm/
 | Issue ID | `I-<nnn>`: `I`, a hyphen, then the issue number. Numbers run across the whole project, not per milestone. The number has at least three digits, is zero-padded below 100, and has no other leading zeros. | `I-003`, `I-042`, `I-1204` |
 | Issue file | `<id>-<slug>.yaml` | `I-003-tenant-resolution.yaml` |
 | Slug | lowercase kebab-case: words of `a-z` and `0-9` joined by single hyphens | `tenant-resolution` |
+| Repo | a slug | `backend`, `web-app` |
 
 The extension is always `.yaml`, never `.yml`.
 
 An issue's folder is its milestone.
+
+## config.yaml
+
+`pm/config.yaml` is optional. Without it, the repos are `backend`, `frontend` and `mobile`, and `backend` is the home repo. Make it only when the project's repos are different. Its one key is required.
+
+```yaml
+repos:                     # at least one, each a slug, listed once
+  - backend                # the home repo comes first
+  - frontend
+  - mobile
+```
+
+| Key | Value |
+|---|---|
+| `repos` | The project's repos, at least one. Each is a slug and is listed once. An issue's `repo` is one of them. The first is the home repo, which holds `pm/`. |
+
+When a project gains a repo, add it to `repos` before an issue names it. Without `config.yaml`, first make it with all three default repos, then add the new one.
 
 ## milestone.yaml
 
@@ -231,7 +252,7 @@ id: I-003
 title: Tenant resolution from request domain
 status: todo               # todo | doing | blocked | done | dropped | duplicate
 priority: high             # high | medium | low
-repo: backend              # backend | frontend | mobile
+repo: backend              # a repo from config.yaml; without it, backend | frontend | mobile
 spec: "section 4.2"        # string or null
 context: >                 # non-empty
   Why this exists.
@@ -256,7 +277,7 @@ notes:                     # may be empty, except when blocked or dropped
 | `title` | A non-empty string. |
 | `status` | `todo`, `doing`, `blocked`, `done`, `dropped` or `duplicate`. |
 | `priority` | `high`, `medium` or `low`. |
-| `repo` | `backend`, `frontend` or `mobile`: the repo the issue's work is committed in. Work outside the code is `backend`, the home of `pm/`, and so is every issue of a project with one repo. |
+| `repo` | The repo the issue's work is committed in: one that `config.yaml` lists, or, without it, `backend`, `frontend` or `mobile`. Work outside the code goes under the home repo, and so does every issue of a project with one repo. |
 | `spec` | Where `SPEC.md` covers this issue, as a non-empty string, or `null`. |
 | `context` | A non-empty string: why the issue exists. |
 | `scope.in`, `scope.out` | Lists of non-empty strings: what the issue delivers, and what it leaves out. Either may be `[]`. |
@@ -272,7 +293,7 @@ The validator checks every rule below. Each one is an error, except the three ma
 
 ### Structure
 
-- `pm/` contains only milestone folders.
+- `pm/` contains only milestone folders, and `config.yaml` when the project has one.
 - A milestone folder contains exactly one `milestone.yaml`, plus issue files, and nothing else.
 
 ### Parsing and types
@@ -285,6 +306,12 @@ The validator checks every rule below. Each one is an error, except the three ma
 - Dates are quoted strings that are real dates in the form `YYYY-MM-DD`. An unquoted date, `"2026-02-30"` and `"2026-1-5"` are all rejected.
 - `title`, `context`, a milestone's `spec` and every `text` are non-empty strings, and so are an issue's `spec`, when it isn't `null`, and every `scope` item. A string of only spaces counts as empty.
 - `acceptance` has at least one item.
+
+### Config
+
+- `config.yaml` has one key, `repos`: a list of at least one slug, with no slug listed twice.
+- An issue's `repo` is one of the repos `config.yaml` lists. Without `config.yaml`, it is `backend`, `frontend` or `mobile`.
+- While `config.yaml` has errors, an issue's `repo` is checked only as a non-empty string, so the error isn't repeated on every issue. Fix `config.yaml` first; errors about `repo` can appear once it passes.
 
 ### Identity
 
@@ -328,6 +355,7 @@ The validator rejects each of these:
 | `I-1`, `I-0042`, `M01` | `I-001`, `I-042`, `M1` |
 | a related link written on both issues | on one of them |
 | a key the format doesn't have, such as a goal, an assignee or a due date | the goal in `SPEC.md`, and the history in git |
+| `config.yml`, or a `repo` that `config.yaml` doesn't list | `config.yaml`, listing every repo an issue names |
 | `blocked` or `dropped` with no note | a note that says why |
 | `done` with an acceptance item still `false` | every item `done: true` first |
 
@@ -339,7 +367,7 @@ The validator can't see these, so check them yourself:
 | a closed issue set back to `todo` or `doing` | a new issue, `related` to the old one |
 | an acceptance item set to `done: true` before its outcome holds | `true` only once it holds |
 | a milestone set to `done` before its gate criteria in `SPEC.md` are met | `done` only once they are |
-| backend files staged with `git add -A` from the frontend or mobile repo | only your `pm/` files, staged by name |
+| home repo files staged with `git add -A` from another repo | only your `pm/` files, staged by name |
 
 ## The package
 
@@ -351,6 +379,7 @@ pm_tree/
   validate.py              # the validator: Python 3.10+, needs only PyYAML (and git for --next-id)
   templates/milestone.yaml
   templates/issue.yaml
+  templates/config.yaml
   example/pm/              # a small valid tree that uses every field, status, repo and link type
 ```
 

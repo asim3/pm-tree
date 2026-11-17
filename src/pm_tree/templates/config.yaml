@@ -1,0 +1,7 @@
+# Config template. Copy it to pm/config.yaml only when the project's repos are not backend,
+# frontend and mobile; without the file, those three are its repos, with backend as the home repo.
+# The format, its rules and how to work in pm/: `pm-tree --guide`.
+repos:                     # at least one, each a lowercase kebab-case slug, listed once
+  - backend                # the home repo, which holds pm/, comes first
+  - frontend
+  - mobile

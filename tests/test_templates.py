@@ -13,6 +13,7 @@ from pm_tree import validate
 TEMPLATES = {
     "milestone.yaml": validate.MILESTONE_SCHEMA,
     "issue.yaml": validate.ISSUE_SCHEMA,
+    "config.yaml": validate.CONFIG_SCHEMA,
 }
 
 

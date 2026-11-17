@@ -63,7 +63,7 @@ def test_the_command_is_pm_tree():
 
 def test_docs_prints_the_folder_of_the_readme_templates_and_example(tmp_path):
     assert run("--docs", cwd=tmp_path) == (0, [f"pm-tree {VERSION}", str(PACKAGE_DIR)])
-    for name in ("README.md", "templates/milestone.yaml", "templates/issue.yaml", "example/pm"):
+    for name in ("README.md", "templates/milestone.yaml", "templates/issue.yaml", "templates/config.yaml", "example/pm"):
         assert (PACKAGE_DIR / name).exists(), name
 
 
@@ -164,6 +164,23 @@ def test_warnings_alone_exit_0(tmp_path):
     assert code == 0
     assert lines[-1] == "0 errors, 2 warnings"
     assert all(line.startswith("WARNING ") for line in lines[1:-1])
+
+
+def test_config_yaml_sets_the_repos(tmp_path):
+    tree = base_tree()
+    tree["config.yaml"] = "repos: [site, docs]\n"
+    for path in ("M1-core/I-001-model.yaml", "M1-core/I-002-form.yaml", "M1-core/I-003-export.yaml"):
+        doc(tree, path)["repo"] = "site"
+    doc(tree, "M1-core/I-004-download.yaml")["repo"] = "docs"
+    write_tree(tmp_path / "pm", tree)
+    assert run(cwd=tmp_path) == (0, [f"pm-tree {VERSION}", "0 errors, 0 warnings"])
+    doc(tree, "M1-core/I-004-download.yaml")["repo"] = "backend"
+    write_tree(tmp_path / "pm2", tree)
+    assert run("pm2", cwd=tmp_path) == (1, [
+        f"pm-tree {VERSION}",
+        "ERROR pm2/M1-core/I-004-download.yaml: repo must be one of site, docs, got 'backend'",
+        "1 error, 0 warnings",
+    ])
 
 
 def test_summary_of_the_example():
@@ -283,6 +300,14 @@ def test_next_id_counts_the_working_tree_and_every_local_and_remote_branch(tmp_p
 
     write_issue(clone, "M2-later/I-099-unsaved.yaml", issue("I-099", "Unsaved"))
     assert run("pm", "--next-id", cwd=clone) == (0, [f"pm-tree {VERSION}", "I-100"])  # not yet committed
+
+
+def test_next_id_skips_config_yaml(tmp_path):
+    repo = repo_with_base_tree(tmp_path / "repo")
+    (repo / "pm" / "config.yaml").write_text("repos: [backend]\n", encoding="utf-8")
+    git(repo, "add", "pm")
+    git(repo, "commit", "-m", "config")
+    assert run("--next-id", cwd=repo) == (0, [f"pm-tree {VERSION}", "I-005"])
 
 
 def test_next_id_of_an_empty_pm_is_i_001(tmp_path):

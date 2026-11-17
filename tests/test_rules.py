@@ -77,6 +77,12 @@ def replace(path, old, new):
     return apply
 
 
+def config(content):
+    """Write pm/config.yaml: a dict as YAML, a str as it is."""
+    text = content if isinstance(content, str) else dump(content)
+    return lambda tree: tree.update({"config.yaml": text})
+
+
 def cycle_of(*ids):
     """Issues in M2 where each depends on the next and the last on the first."""
     def apply(tree):
@@ -90,10 +96,14 @@ ISSUE_STATUS_LIST = "todo, doing, blocked, done, dropped, duplicate"
 
 RULES = {
     # Structure
-    "pm-holds-only-milestone-folders": [
+    "pm-holds-only-milestone-folders-and-config": [
         ok(),
-        bad(lambda tree: tree.update({"README.md": "notes\n"}), ("README.md", "only milestone folders belong here")),
+        ok(config({"repos": ["backend"]})),
+        bad(lambda tree: tree.update({"README.md": "notes\n"}),
+            ("README.md", "only milestone folders and config.yaml belong here, not other files")),
         bad(lambda tree: tree.update({"notes": {}}), ("notes", "a milestone folder is named M<n>-<slug>")),
+        bad(lambda tree: tree.update({"config": {}}), ("config", "a milestone folder is named M<n>-<slug>")),
+        bad(lambda tree: tree.update({"config.yml": "repos: [backend]\n"}), ("config.yml", "the extension must be .yaml")),
     ],
     "milestone-folder-name": [
         ok(rename_folder("M2-later", "M2-later-in-2027")),
@@ -198,6 +208,34 @@ RULES = {
     "acceptance-has-an-item": [
         ok(),
         bad(set_fields(I3, acceptance=[]), (I3, "acceptance must have at least one item")),
+    ],
+    # Config
+    "config-has-a-list-of-repos": [
+        ok(config({"repos": ["backend", "web-app", "app2"]})),
+        bad(config({}), ("config.yaml", "missing key repos")),
+        bad(config({"repos": ["backend"], "home": "backend"}), ("config.yaml", "unknown key home")),
+        bad(config({"repos": []}), ("config.yaml", "repos must have at least one item")),
+        bad(config("repos: backend\n"), ("config.yaml", "repos must be a list, got 'backend'")),
+        bad(config({"repos": ["backend", "Web App"]}),
+            ("config.yaml", "repos[1] must be a lowercase kebab-case slug, like backend, got 'Web App'")),
+        bad(config({"repos": ["backend", "site", "backend"]}), ("config.yaml", "repos lists backend more than once")),
+        bad(config("repos: [backend\n"), ("config.yaml", "invalid YAML")),
+        bad(config(""), ("config.yaml", "the file must be a mapping, got null")),
+    ],
+    "repo-is-a-configured-repo": [
+        ok(config({"repos": ["backend", "site"]}), add(I5, issue("I-005", "First", repo="site"))),
+        ok(config({"repos": ["site", "backend"]})),  # the order matters only to the guide: the home repo comes first
+        bad(chain(config({"repos": ["backend", "site"]}), set_fields(I3, repo="frontend")),
+            (I3, "repo must be one of backend, site, got 'frontend'")),
+        bad(config({"repos": ["site", "docs"]}),
+            *[(path, "repo must be one of site, docs, got 'backend'") for path in (I1, I2, I3, I4)]),
+    ],
+    "a-broken-config-leaves-repo-checked-as-a-string": [
+        ok(),
+        bad(chain(config({"repos": []}), set_fields(I3, repo="anything")),
+            ("config.yaml", "repos must have at least one item")),  # and nothing on I-003
+        bad(chain(config("repos: [backend\n"), set_fields(I3, repo="")),
+            ("config.yaml", "invalid YAML"), (I3, "repo must be a non-empty string, got ''")),
     ],
     # Identity
     "ids-have-the-right-form": [

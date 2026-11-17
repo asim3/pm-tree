@@ -27,6 +27,7 @@ from yaml.constructor import ConstructorError
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+SLUG_RE = re.compile(SLUG)
 MILESTONE_ID = r"M[1-9][0-9]*"
 ISSUE_ID = r"I-(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2,})"
 MILESTONE_ID_RE = re.compile(MILESTONE_ID)
@@ -41,7 +42,8 @@ OPEN_STATUSES = ("todo", "doing", "blocked")
 NEVER_DONE = ("dropped", "duplicate")  # closed without being done
 CLOSED_STATUSES = ("done", *NEVER_DONE)
 PRIORITIES = ("high", "medium", "low")
-REPOS = ("backend", "frontend", "mobile")
+REPOS = ("backend", "frontend", "mobile")  # an issue's repo when pm/ has no config.yaml
+CONFIG_FILE = "config.yaml"
 
 # Each link key and the relation it records between two issues. A link is written on one of them.
 RELATIONS = {
@@ -263,23 +265,33 @@ MILESTONE_SCHEMA = Record({
     "spec": Text(),
 })
 
-ISSUE_SCHEMA = Record({
-    "id": ISSUE_REF,
-    "title": Text(),
-    "status": OneOf(ISSUE_STATUSES),
-    "priority": OneOf(PRIORITIES),
-    "repo": OneOf(REPOS),
-    "spec": Nullable(Text()),
-    "context": Text(),
-    "scope": Record({"in": ListOf(Text()), "out": ListOf(Text())}),
-    "acceptance": ListOf(Record({"text": Text(), "done": Flag()}), at_least_one=True),
-    "links": Record({
-        "depends_on": ListOf(ISSUE_REF, unique=True),
-        "related": ListOf(ISSUE_REF, unique=True),
-        "duplicate_of": Nullable(ISSUE_REF),
-    }),
-    "notes": ListOf(Record({"date": Date(), "text": Text()})),
+CONFIG_SCHEMA = Record({
+    "repos": ListOf(Ident(SLUG_RE, "a lowercase kebab-case slug, like backend"), at_least_one=True, unique=True),
 })
+
+
+def issue_schema(repo: Leaf) -> Record:
+    """The issue schema, with the check for repo: the repos config.yaml lists, or REPOS without it."""
+    return Record({
+        "id": ISSUE_REF,
+        "title": Text(),
+        "status": OneOf(ISSUE_STATUSES),
+        "priority": OneOf(PRIORITIES),
+        "repo": repo,
+        "spec": Nullable(Text()),
+        "context": Text(),
+        "scope": Record({"in": ListOf(Text()), "out": ListOf(Text())}),
+        "acceptance": ListOf(Record({"text": Text(), "done": Flag()}), at_least_one=True),
+        "links": Record({
+            "depends_on": ListOf(ISSUE_REF, unique=True),
+            "related": ListOf(ISSUE_REF, unique=True),
+            "duplicate_of": Nullable(ISSUE_REF),
+        }),
+        "notes": ListOf(Record({"date": Date(), "text": Text()})),
+    })
+
+
+ISSUE_SCHEMA = issue_schema(OneOf(REPOS))  # for a pm/ with no config.yaml
 
 
 # --- The tree ----------------------------------------------------------------
@@ -366,7 +378,8 @@ class Validator:
 
     Each file is checked on its own as it is read. The checks across files then run only on the
     issues that passed the schema and whose ID no other file claims, so one broken file doesn't
-    set off errors in every file that links to it.
+    set off errors in every file that links to it. config.yaml is read first, since it sets the
+    repos an issue may name.
     """
 
     def __init__(self, root: Path, today: date | None = None):
@@ -376,6 +389,7 @@ class Validator:
         self.milestones: list[Milestone] = []
         self.issues: dict[str, Issue] = {}  # schema-valid, uniquely claimed issues by ID
         self.claims: dict[str, list[str]] = defaultdict(list)  # issue ID -> files claiming it
+        self.issue_schema = ISSUE_SCHEMA  # until config.yaml names other repos
 
     def error(self, path: Path | str, message: str) -> None:
         self.findings.append(Finding("ERROR", Path(path).as_posix(), message))
@@ -400,11 +414,16 @@ class Validator:
     # Reading, with the checks on single files
 
     def read_tree(self) -> None:
+        self.read_config()
         folders: dict[str, list[str]] = defaultdict(list)
         for entry in sorted(self.root.iterdir(), key=lambda p: natural_key(p.name)):
             match = MILESTONE_FOLDER_RE.fullmatch(entry.name)
-            if not entry.is_dir():
-                self.error(entry, "only milestone folders belong here, not files")
+            if entry.name == CONFIG_FILE and entry.is_file():
+                continue
+            if entry.name == "config.yml":
+                self.error(entry, "the extension must be .yaml")
+            elif not entry.is_dir():
+                self.error(entry, f"only milestone folders and {CONFIG_FILE} belong here, not other files")
             elif match is None:
                 self.error(entry, "a milestone folder is named M<n>-<slug>, e.g. M1-tenant-core")
             else:
@@ -418,6 +437,16 @@ class Validator:
             for issue in milestone.issues:
                 if len(self.claims[issue.id]) == 1:
                     self.issues[issue.id] = issue
+
+    def read_config(self) -> None:
+        path = self.root / CONFIG_FILE
+        if not path.is_file():
+            return
+        data, problems = load(path, CONFIG_SCHEMA)
+        for problem in problems:
+            self.error(path, problem)
+        # Until config.yaml is fixed, repo is checked only as a string, so its error isn't repeated on every issue.
+        self.issue_schema = issue_schema(Text() if problems else OneOf(tuple(data["repos"])))
 
     def read_milestone(self, folder: Path, milestone: Milestone) -> None:
         for entry in sorted(folder.iterdir(), key=lambda p: natural_key(p.name)):
@@ -443,7 +472,7 @@ class Validator:
             self.error(folder, "milestone.yaml is missing")
 
     def read_issue(self, path: Path, milestone: Milestone) -> None:
-        data, problems = load(path, ISSUE_SCHEMA)
+        data, problems = load(path, self.issue_schema)
         declared = declared_id(data, ISSUE_ID_RE)
         name = ISSUE_FILE_RE.fullmatch(path.name)
         named = name.group(1) if name else None
@@ -710,7 +739,7 @@ def plural(count: int, noun: str) -> str:
     return f"{count} {noun}" + ("" if count == 1 else "s")
 
 
-TEMPLATE_NAMES = ("milestone.yaml", "issue.yaml")
+TEMPLATE_NAMES = ("milestone.yaml", "issue.yaml", "config.yaml")
 
 HELP_EPILOG = """\
 For an LLM: run `pm-tree --guide` and read all of it before you create, change
@@ -730,7 +759,7 @@ error and 0 otherwise, so warnings alone exit 0.
 
 
 def guide() -> str:
-    """The guide for the LLM that works in pm/: README.md, then the two templates."""
+    """The guide for the LLM that works in pm/: README.md, then the templates."""
     parts = [(PACKAGE_DIR / "README.md").read_text(encoding="utf-8").rstrip("\n"), "", "## Templates"]
     for name in TEMPLATE_NAMES:
         template = (PACKAGE_DIR / "templates" / name).read_text(encoding="utf-8").rstrip("\n")
@@ -749,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
         "path",
         nargs="?",
         default="pm",
-        help="the pm/ folder (default: pm in the current folder); from a frontend or mobile repo, the backend's pm/",
+        help="the pm/ folder (default: pm in the current folder); from another repo, the home repo's pm/",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
