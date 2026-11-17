@@ -4,7 +4,7 @@ This guide is for you, the LLM working in a project that tracks its work in `pm/
 
 `pm-tree --guide` prints this guide, followed by the templates. It describes the version your repo pins, which `pm-tree` prints on its first line.
 
-pm-tree is two things: a file-based project-management format, and `pm-tree`, a strict validator for it.
+pm-tree is two things: a file-based project-management format, and `pm-tree`, a strict validator for it. Both are designed for you, the LLM, first.
 
 ## What pm/ is
 

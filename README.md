@@ -1,6 +1,8 @@
 # pm-tree
 
-A file-based project-management format, and a strict validator for it. A project tracks its milestones and issues in `pm/`, with one YAML file per issue, and Claude Code works from them.
+A file-based project-management format, and a strict validator for it. A project tracks its milestones and issues in `pm/`, with one YAML file per issue.
+
+It is designed for LLMs first. An LLM, such as Claude Code, keeps `pm/` up to date and runs the validator, and a human reviews `pm/`.
 
 It started as the format for its maintainer's own projects. It is free for anyone to use, fork and improve, under the MIT licence (see *Licence*).
 
