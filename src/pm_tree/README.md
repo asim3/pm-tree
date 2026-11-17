@@ -8,12 +8,12 @@ pm-tree is two things: a file-based project-management format, and `pm-tree`, a 
 
 ## What pm/ is
 
-- `pm/` is the main interface between the owner and you. The owner reviews `pm/`, not the code.
+- `pm/` is the main interface between the maintainer and you. The maintainer reviews `pm/`, not the code.
 - It holds one folder per milestone, and one YAML file per issue.
 - You work from the issues, and you keep them up to date as you work.
-- You close issues and milestones on your own judgment. Ask the owner only when one needs him, such as for a decision.
+- You close issues and milestones on your own judgment. Ask the maintainer only when one needs them, such as for a decision.
 - Each fact is written once. A milestone's goal and gate criteria stay in the project's `SPEC.md`. Each link between two issues is written on one of them.
-- History comes from git, so the files hold no dates and no owners. The only dates are the ones inside notes.
+- History comes from git, so the files hold no dates and no assignees. The only dates are the ones inside notes.
 
 ## Commands
 
@@ -77,7 +77,7 @@ M2 Lead capture: active
 
 1. Run `git fetch`.
 2. Run `pm-tree --summary`. If it reports errors, fix them first (see *Fix the findings*).
-3. Choose from the `ready` list of an active milestone, unless the owner has named the issue.
+3. Choose from the `ready` list of an active milestone, unless the maintainer has named the issue.
 4. Before you start an issue, look in its repo for a branch with its ID, such as `git branch -a --list '*I-007-*'`. If there is one, the issue is already being worked on.
 
 ### Start an issue
@@ -150,7 +150,7 @@ Each link is written on one issue only. To find what waits on I-003, or what rep
 - Run the backend's own `pm-tree` on the backend's `pm/`, so one version checks the whole product. When the repos sit side by side: `../<product>-backend/.venv/bin/pm-tree ../<product>-backend/pm`.
 - Commit in the backend only the `pm/` files you changed. Stage them by name, never with `git add -A` or `git commit -a`, so you can't sweep up backend work that isn't finished.
 - They go in a commit of their own, on a branch made from the backend's `main`, and reach `main` through a merge request.
-- When the backend checkout isn't on `main`, ask the owner first.
+- When the backend checkout isn't on `main`, ask the maintainer first.
 
 ### Set up pm/ in a new project
 
@@ -327,7 +327,7 @@ The validator rejects each of these:
 | `status: Done`, `priority: High` | `status: done`, `priority: high` |
 | `I-1`, `I-0042`, `M01` | `I-001`, `I-042`, `M1` |
 | a related link written on both issues | on one of them |
-| a key the format doesn't have, such as a goal, an owner or a due date | the goal in `SPEC.md`, and the history in git |
+| a key the format doesn't have, such as a goal, an assignee or a due date | the goal in `SPEC.md`, and the history in git |
 | `blocked` or `dropped` with no note | a note that says why |
 | `done` with an acceptance item still `false` | every item `done: true` first |
 
@@ -354,4 +354,4 @@ pm_tree/
   example/pm/              # a small valid tree that uses every field, status, repo and link type
 ```
 
-The version is in the package's `pyproject.toml`, and the validator prints it first. The owner sets it by hand.
+The version is in the package's `pyproject.toml`, and the validator prints it first. pm-tree's maintainer sets it by hand.

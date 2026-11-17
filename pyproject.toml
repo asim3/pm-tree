@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,6 +7,8 @@ name = "pm-tree"
 version = "1.1.0"
 description = "A strict, file-based project-management format, worked by Claude Code, and its validator."
 readme = "src/pm_tree/README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = ["PyYAML>=6.0"]
 

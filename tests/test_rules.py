@@ -127,7 +127,7 @@ RULES = {
     ],
     "no-unknown-keys": [
         ok(),
-        bad(set_fields(M2, owner="someone"), (M2, "unknown key owner")),
+        bad(set_fields(M2, assignee="someone"), (M2, "unknown key assignee")),
         bad(set_fields(M2, goal="What M2 delivers."), (M2, "unknown key goal")),
         bad(set_links(I3, blocks=["I-004"]), (I3, "unknown key links.blocks")),
         bad(set_fields(I3, created="2026-10-01"), (I3, "unknown key created")),
